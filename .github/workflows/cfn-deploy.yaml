@@ -120,7 +120,7 @@ jobs:
       - name: Download Previous Artifacts
         id: download-artifact
         if: steps.check-artifact.outputs.artifact-exists == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cfn-deploy-params
           path: .artifacts
