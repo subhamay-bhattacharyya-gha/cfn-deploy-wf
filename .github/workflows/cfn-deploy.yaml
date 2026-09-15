@@ -60,6 +60,18 @@ on:
         type: string
         default: "infra/template.yaml"
 
+      skip-template-validation:
+        description: "Skip CloudFormation template validation for faster development iterations"
+        required: false
+        type: boolean
+        default: false
+
+      skip-s3-upload:
+        description: "Skip S3 template upload and use last uploaded template from S3 bucket"
+        required: false
+        type: boolean
+        default: false
+
 permissions:
   id-token: write
   contents: read
@@ -216,6 +228,7 @@ jobs:
           echo "filename=$TEMPLATE_FILENAME" >> $GITHUB_OUTPUT
 
       - name: Validate CloudFormation Templates
+        if: ${{ !inputs.skip-template-validation }}
         uses: subhamay-bhattacharyya-gha/cfn-validate-action@main
         with:
           aws-role-arn: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.oidc-role-name }}
@@ -224,9 +237,15 @@ jobs:
           aws-region: ${{ inputs.aws-region }}
 
       - name: Run CloudFormation Lint
+        if: ${{ !inputs.skip-template-validation }}
         uses: subhamay-bhattacharyya-gha/cfn-lint-action@v1.0.0
         with:
           template-path: ${{ inputs.template-file }}
+
+      - name: Skip Template Validation
+        if: ${{ inputs.skip-template-validation }}
+        run: |
+          echo "⏭️  Skipping template validation"
 
   upload-to-s3:
     name: Upload Template to S3
@@ -237,12 +256,13 @@ jobs:
       id-token: write
       contents: read
     outputs:
-      template_url: ${{ steps.upload.outputs.template_url }}
+      template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
       - name: Configure AWS credentials via OIDC
+        if: ${{ !inputs.skip-s3-upload }}
         uses: aws-actions/configure-aws-credentials@v6.2.4
         with:
           role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.oidc-role-name }}
@@ -250,6 +270,7 @@ jobs:
 
       - name: Upload template to S3 and set output
         id: upload
+        if: ${{ !inputs.skip-s3-upload }}
         run: |
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
@@ -260,6 +281,17 @@ jobs:
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "Template URL: ${TEMPLATE_URL}"
           echo "✅ Template uploaded to S3"
+
+      - name: Skip S3 Upload - Use Existing Template
+        id: skip-upload
+        if: ${{ inputs.skip-s3-upload }}
+        run: |
+          TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
+          TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
+          TEMPLATE_URL="https://${{ inputs.cfn-templates-s3-bucket }}.s3.${{ inputs.aws-region }}.amazonaws.com/${TEMPLATE_KEY}"
+          echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
+          echo "⏭️  Skipping S3 upload - using existing template from S3"
+          echo "Template URL: ${TEMPLATE_URL}"
 
   deploy:
     name: Deploy Stack
@@ -360,9 +392,7 @@ jobs:
             echo "| Parameters File | ${PARAMS_FILE} |"
             echo ""
             echo "### CloudFormation Parameters"
-            echo "| Parameter Name | Value |"
-            echo "|---|---|"
-            cat "${PARAMS_FILE}" | jq -r 'to_entries[] | "| \(.key) | \(.value) |"'
+            cat "${PARAMS_FILE}" | jq -r '"| # | Parameter Name | Value |\n|---|---|---|" , (to_entries[] | "| \(.key) | \(.value.ParameterKey) | `\(.value.ParameterValue)` |")'
           } >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Parameters as Artifact (for failure recovery)
