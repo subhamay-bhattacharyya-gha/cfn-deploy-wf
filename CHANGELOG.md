@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf/compare/v1.1.0...v1.2.0) (2026-09-15)
+
+
+### Features
+
+* add options to skip CloudFormation template validation and S3 upload for faster development ([b4313a7](https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf/commit/b4313a7ae919f95dfeb135b2225826a22c65d3fa))
+
 # [1.1.0](https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf/compare/v1.0.0...v1.1.0) (2026-09-10)
 
 
