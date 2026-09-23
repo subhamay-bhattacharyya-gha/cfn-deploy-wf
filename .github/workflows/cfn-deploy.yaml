@@ -77,9 +77,9 @@ permissions:
   contents: read
   actions: write
 
-concurrency:
-  group: ${{ inputs.concurrency-group || format('cfn-deploy-{0}-{1}', inputs.environment, github.ref) }}
-  cancel-in-progress: true
+# concurrency:
+#   group: ${{ inputs.concurrency-group || format('cfn-deploy-{0}-{1}', inputs.environment, github.ref) }}
+#   cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -130,7 +130,7 @@ jobs:
           | Stack Name (Base) | ${{ inputs.stack-name }} |
           | Template File | ${{ inputs.template-file }} |
           | Parameters File | ${{ inputs.parameters-file }} |
-          | Concurrency Group | ${{ inputs.concurrency-group }} |
+          # | Concurrency Group | ${{ inputs.concurrency-group }} |
           | Skip Template Validation | ${{ inputs.skip-template-validation }} |
           | Skip S3 Upload | ${{ inputs.skip-s3-upload }} |
           EOF
@@ -228,8 +228,8 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.oidc-role-name }}
-          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify AWS Credentials
         run: |
@@ -250,10 +250,10 @@ jobs:
         if: ${{ !inputs.skip-template-validation }}
         uses: subhamay-bhattacharyya-gha/cfn-validate-action@main
         with:
-          aws-role-arn: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.oidc-role-name }}
+          aws-role-arn: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
           cloudformation-dir: ${{ steps.template-paths.outputs.directory }}
           template-file: ${{ steps.template-paths.outputs.filename }}
-          aws-region: ${{ inputs.aws-region }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Run CloudFormation Lint
         if: ${{ !inputs.skip-template-validation }}
@@ -284,8 +284,8 @@ jobs:
         if: ${{ !inputs.skip-s3-upload }}
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.oidc-role-name }}
-          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Upload template to S3 and set output
         id: upload
@@ -294,9 +294,9 @@ jobs:
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
           echo "Uploading template to S3..."
-          aws s3 cp ${{ inputs.template-file }} "s3://${{ inputs.cfn-templates-s3-bucket }}/${TEMPLATE_KEY}" --region ${{ inputs.aws-region }}
+          aws s3 cp ${{ inputs.template-file }} "s3://${{ env.CFN_TEMPLATES_S3_BUCKET }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
 
-          TEMPLATE_URL="https://${{ inputs.cfn-templates-s3-bucket }}.s3.${{ inputs.aws-region }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "Template URL: ${TEMPLATE_URL}"
           echo "✅ Template uploaded to S3"
@@ -307,7 +307,7 @@ jobs:
         run: |
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
-          TEMPLATE_URL="https://${{ inputs.cfn-templates-s3-bucket }}.s3.${{ inputs.aws-region }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "⏭️  Skipping S3 upload - using existing template from S3"
           echo "Template URL: ${TEMPLATE_URL}"
@@ -330,8 +330,8 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.oidc-role-name }}
-          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Prepare CloudFormation Parameters with CiSuffix
         id: prepare-params
@@ -393,14 +393,14 @@ jobs:
             echo "| Parameter | Value |"
             echo "|-----------|-------|"
             echo "| Environment | ${{ inputs.environment }} |"
-            echo "| AWS Region | ${{ inputs.aws-region }} |"
-            echo "| AWS Account ID | ${{ inputs.aws-account-id }} |"
-            echo "| OIDC Role Name | ${{ inputs.oidc-role-name }} |"
-            echo "| CFN Templates S3 Bucket | ${{ inputs.cfn-templates-s3-bucket }} |"
+            echo "| AWS Region | ${{ env.AWS_REGION }} |"
+            echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
+            echo "| OIDC Role Name | ${{ env.OIDC_ROLE_NAME }} |"
+            echo "| CFN Templates S3 Bucket | ${{ env.CFN_TEMPLATES_S3_BUCKET}} |"
             echo "| Stack Name | ${{ inputs.stack-name != '' && inputs.stack-name || 'default (repository name)' }} |"
             echo "| Template File | ${{ inputs.template-file }} |"
             echo "| Parameters File | ${{ inputs.parameters-file }} |"
-            echo "| Concurrency Group | ${{ inputs.concurrency-group != '' && inputs.concurrency-group || 'default (auto-generated)' }} |"
+            # echo "| Concurrency Group | ${{ inputs.concurrency-group != '' && inputs.concurrency-group || 'default (auto-generated)' }} |"
             echo ""
             echo "### Computed Values"
             echo "| Parameter | Value |"
@@ -427,7 +427,7 @@ jobs:
         shell: bash
         run: |
           STACK_NAME="${{ needs.validate.outputs.stack-name }}"
-          REGION="${{ inputs.aws-region }}"
+          REGION="${{ env.AWS_REGION }}"
 
           echo "🗑️  Checking if stack exists: $STACK_NAME"
 
@@ -447,7 +447,7 @@ jobs:
         shell: bash
         run: |
           STACK_NAME="${{ needs.validate.outputs.stack-name }}"
-          REGION="${{ inputs.aws-region }}"
+          REGION="${{ env.AWS_REGION }}"
           TEMPLATE_URL="${{ needs.upload-to-s3.outputs.template_url }}"
           PARAMS_FILE="${{ steps.prepare-params.outputs.parameters_file }}"
 
@@ -482,7 +482,7 @@ jobs:
           echo "updates-needed=true" >> $GITHUB_OUTPUT
           echo "ℹ️  Proceeding with update attempt (AWS will validate if changes exist)"
         env:
-          AWS_REGION: ${{ inputs.aws-region }}
+          AWS_REGION: ${{ env.AWS_REGION }}
 
       - name: Validate Parameters Format
         shell: bash
@@ -505,18 +505,18 @@ jobs:
         uses: subhamay-bhattacharyya-gha/cfn-deploy-action@bug/GHA-0013-rename-region-input-to-aw
         with:
           stack-name: ${{ needs.validate.outputs.stack-name }}
-          aws-region: ${{ inputs.aws-region }}
+          aws-region: ${{ env.AWS_REGION }}
           template-url: ${{ needs.upload-to-s3.outputs.template_url }}
           parameters-file: ${{ steps.prepare-params.outputs.parameters_file }}
-          aws-account-id: ${{ inputs.aws-account-id }}
-          oidc-role-name: ${{ inputs.oidc-role-name }}
+          aws-account-id: ${{ env.AWS_ACCOUNT_ID }}
+          oidc-role-name: ${{ env.OIDC_ROLE_NAME }}
 
       - name: Handle Deployment Result
         shell: bash
         run: |
           DEPLOY_STATUS="${{ steps.deploy.outcome }}"
           STACK_NAME="${{ needs.validate.outputs.stack-name }}"
-          REGION="${{ inputs.aws-region }}"
+          REGION="${{ env.AWS_REGION }}"
 
           if [[ "$DEPLOY_STATUS" == "success" ]]; then
             echo "✅ CloudFormation stack deployed successfully: $STACK_NAME"
@@ -550,7 +550,7 @@ jobs:
             fi
           fi
         env:
-          AWS_REGION: ${{ inputs.aws-region }}
+          AWS_REGION: ${{ env.AWS_REGION }}
 
       - name: Delete Artifact on Successful Deployment
         if: success()
