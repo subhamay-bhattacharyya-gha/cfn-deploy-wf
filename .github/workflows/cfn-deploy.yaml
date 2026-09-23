@@ -109,6 +109,32 @@ jobs:
           fi
           echo "✅ Valid environment: ${{ inputs.environment }}"
 
+      - name: Print Inputs and Configuration to Summary
+        if: vars.PRINT_DEBUG_INFO == 'true'
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🔍 CloudFormation Deploy - Debug Info
+
+          **Workflow File**: `.github/workflows/cfn-deploy.yaml`
+          **Organization**: `${{ github.repository_owner }}`
+          **Repository**: `${{ github.repository }}`
+
+          ### Workflow Inputs
+          | Parameter | Value |
+          |-----------|-------|
+          | Environment | ${{ inputs.environment }} |
+          | AWS Region | ${{ inputs.aws-region }} |
+          | AWS Account ID | ${{ inputs.aws-account-id }} |
+          | OIDC Role Name | ${{ inputs.oidc-role-name }} |
+          | S3 Bucket | ${{ inputs.cfn-templates-s3-bucket }} |
+          | Stack Name (Base) | ${{ inputs.stack-name }} |
+          | Template File | ${{ inputs.template-file }} |
+          | Parameters File | ${{ inputs.parameters-file }} |
+          | Concurrency Group | ${{ inputs.concurrency-group }} |
+          | Skip Template Validation | ${{ inputs.skip-template-validation }} |
+          | Skip S3 Upload | ${{ inputs.skip-s3-upload }} |
+          EOF
+
       - name: Check if Artifact Exists
         id: check-artifact
         shell: bash
