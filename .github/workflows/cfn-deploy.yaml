@@ -20,7 +20,7 @@ on:
       # AWS Configuration
       aws-region:
         description: "AWS region for CloudFormation deployment"
-        required: true
+        required: false
         type: string
         default: "us-east-1"
 
@@ -483,10 +483,10 @@ jobs:
       - name: Deploy CloudFormation Stack
         id: deploy
         continue-on-error: true
-        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@v1.0.0
+        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@bug/GHA-0013-rename-region-input-to-aw
         with:
           stack-name: ${{ needs.validate.outputs.stack-name }}
-          region: ${{ inputs.aws-region }}
+          aws-region: ${{ inputs.aws-region }}
           template-url: ${{ needs.upload-to-s3.outputs.template_url }}
           parameters-file: ${{ steps.prepare-params.outputs.parameters_file }}
           aws-account-id: ${{ inputs.aws-account-id }}
