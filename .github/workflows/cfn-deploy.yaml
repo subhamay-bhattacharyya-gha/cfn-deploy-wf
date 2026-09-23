@@ -490,7 +490,7 @@ jobs:
       - name: Deploy CloudFormation Stack
         id: deploy
         continue-on-error: true
-        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@main
+        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@v1.0.1 
         with:
           stack-name: ${{ needs.validate.outputs.stack-name }}
           aws-region: ${{ env.AWS_REGION }}
