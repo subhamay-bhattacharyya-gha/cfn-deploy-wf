@@ -165,17 +165,17 @@ jobs:
           if [[ "${{ inputs.environment }}" == "ci" ]]; then
             # Try to read existing CI_SUFFIX from artifact
             if [[ -f ".artifacts/cfn-params.json" ]]; then
-              CI_SUFFIX=$(jq -r '.CiSuffix // empty' .artifacts/cfn-params.json 2>/dev/null)
+              CI_SUFFIX=$(jq -r '.CiSuffix // empty' .artifacts/cfn-params.json 2>/dev/null | tr '[:upper:]' '[:lower:]')
               if [[ -n "$CI_SUFFIX" ]]; then
                 echo "suffix=${CI_SUFFIX}" >> $GITHUB_OUTPUT
                 echo "✅ Reused existing CI suffix from artifact: ${CI_SUFFIX}"
               else
-                CI_SUFFIX=$(openssl rand -hex 2 | tr -d '\n')
+                CI_SUFFIX=$(openssl rand -hex 2 | tr -d '\n' | tr '[:upper:]' '[:lower:]')
                 echo "suffix=${CI_SUFFIX}" >> $GITHUB_OUTPUT
                 echo "✅ Generated new CI suffix: ${CI_SUFFIX}"
               fi
             else
-              CI_SUFFIX=$(openssl rand -hex 2 | tr -d '\n')
+              CI_SUFFIX=$(openssl rand -hex 2 | tr -d '\n' | tr '[:upper:]' '[:lower:]')
               echo "suffix=${CI_SUFFIX}" >> $GITHUB_OUTPUT
               echo "✅ Generated new CI suffix: ${CI_SUFFIX}"
             fi
@@ -188,20 +188,13 @@ jobs:
         id: prepare-stack-name
         shell: bash
         run: |
-          CI_SUFFIX="${{ steps.ci-suffix.outputs.suffix }}"
           STACK_NAME="${{ inputs.stack-name }}"
           if [[ -z "$STACK_NAME" ]]; then
             STACK_NAME="${{ github.event.repository.name }}"
           fi
 
-          if [[ -n "$CI_SUFFIX" ]]; then
-            FINAL_STACK_NAME="${STACK_NAME}-${CI_SUFFIX}"
-          else
-            FINAL_STACK_NAME="${STACK_NAME}"
-          fi
-
-          echo "stack-name=${FINAL_STACK_NAME}" >> $GITHUB_OUTPUT
-          echo "✅ Final stack name: ${FINAL_STACK_NAME}"
+          echo "stack-name=${STACK_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ Final stack name: ${STACK_NAME}"
 
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -401,7 +394,7 @@ jobs:
         with:
           name: cfn-deploy-params
           path: ${{ steps.prepare-params.outputs.parameters_file }}
-          retention-days: 1
+          retention-days: 30
 
       - name: Delete Existing Stack in CI Environment
         if: inputs.environment == 'ci'
