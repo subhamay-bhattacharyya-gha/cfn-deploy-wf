@@ -17,30 +17,7 @@ on:
         type: string
         default: ""
 
-      # # AWS Configuration
-      # aws-region:
-      #   description: "AWS region for CloudFormation deployment"
-      #   required: false
-      #   type: string
-      #   default: "us-east-1"
-
-      # aws-account-id:
-      #   description: "AWS account ID for OIDC role assumption"
-      #   required: true
-      #   type: string
-
-      # oidc-role-name:
-      #   description: "IAM role name for OIDC authentication"
-      #   required: true
-      #   type: string
-
-      # S3 Configuration for CloudFormation Templates
-      # cfn-templates-s3-bucket:
-      #   description: "S3 bucket name for storing CloudFormation templates"
-      #   required: true
-      #   type: string
-
-      # Stack Configuration
+       # Stack Configuration
       stack-name:
         description: "CloudFormation stack name"
         required: false
