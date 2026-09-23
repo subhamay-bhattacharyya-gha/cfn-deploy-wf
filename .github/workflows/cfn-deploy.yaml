@@ -35,10 +35,10 @@ on:
       #   type: string
 
       # S3 Configuration for CloudFormation Templates
-      cfn-templates-s3-bucket:
-        description: "S3 bucket name for storing CloudFormation templates"
-        required: true
-        type: string
+      # cfn-templates-s3-bucket:
+      #   description: "S3 bucket name for storing CloudFormation templates"
+      #   required: true
+      #   type: string
 
       # Stack Configuration
       stack-name:
