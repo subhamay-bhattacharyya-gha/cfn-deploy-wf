@@ -95,7 +95,7 @@ jobs:
           ### Workflow Inputs
           | Parameter | Value |
           |-----------|-------|
-          | Environment | `${{ env.AWS_ENVIRONMENT }}` |
+          | Environment | `${{ inputs.environment }}` |
           | AWS Region | `${{ env.AWS_REGION }}` |
           | AWS Account ID | `${{ env.AWS_ACCOUNT_ID }}` |
           | OIDC Role Name | `${{ env.OIDC_ROLE_NAME }}` |
