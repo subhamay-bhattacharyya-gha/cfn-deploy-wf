@@ -73,7 +73,7 @@ jobs:
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
-      OIDC_ROLE_NAME: ${{ vars.OIDC_ROLE_NAME }}
+      AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
       CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
     outputs:
       ci-suffix: ${{ steps.ci-suffix.outputs.suffix }}
@@ -103,7 +103,7 @@ jobs:
           | Environment | `${{ inputs.environment }}` |
           | AWS Region | `${{ env.AWS_REGION }}` |
           | AWS Account ID | `${{ env.AWS_ACCOUNT_ID }}` |
-          | OIDC Role Name | `${{ vars.OIDC_ROLE_NAME }}` |
+          | OIDC Role Name | `${{ env.AWS_OIDC_ROLE_NAME }}` |
           | S3 Bucket | `${{ vars.CFN_TEMPLATES_S3_BUCKET }}` |
           | Stack Name (Base) | `${{ inputs.stack-name }}` |
           | Template File | `${{ inputs.template-file }}` |
@@ -255,7 +255,7 @@ jobs:
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
-      OIDC_ROLE_NAME: ${{ vars.OIDC_ROLE_NAME }}
+      AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
       CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
     outputs:
       template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
