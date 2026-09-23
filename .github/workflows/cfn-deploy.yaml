@@ -490,7 +490,7 @@ jobs:
       - name: Deploy CloudFormation Stack
         id: deploy
         continue-on-error: true
-        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@bug/GHA-0013-rename-region-input-to-aw
+        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@main
         with:
           stack-name: ${{ needs.validate.outputs.stack-name }}
           aws-region: ${{ env.AWS_REGION }}
