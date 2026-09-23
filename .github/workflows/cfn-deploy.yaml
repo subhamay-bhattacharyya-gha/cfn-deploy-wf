@@ -90,26 +90,22 @@ jobs:
         if: vars.PRINT_DEBUG_INFO == 'true'
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 🔍 CloudFormation Deploy - Debug Info
-
-          **Workflow File**: `.github/workflows/cfn-deploy.yaml`
-          **Organization**: `${{ github.repository_owner }}`
-          **Repository**: `${{ github.repository }}`
+          ## 🔍 CloudFormation Deploy - Debug Info (`cfn-deploy-wf`)
 
           ### Workflow Inputs
           | Parameter | Value |
           |-----------|-------|
-          | Environment | ${{ env.ENVIRONMENT }} |
-          | AWS Region | ${{ env.AWS_REGION }} |
-          | AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |
-          | OIDC Role Name | ${{ env.OIDC_ROLE_NAME }} |
-          | S3 Bucket | ${{ env.CFN_TEMPLATES_S3_BUCKET }} |
-          | Stack Name (Base) | ${{ inputs.stack-name }} |
-          | Template File | ${{ inputs.template-file }} |
-          | Parameters File | ${{ inputs.parameters-file }} |
-          # | Concurrency Group | ${{ inputs.concurrency-group }} |
-          | Skip Template Validation | ${{ inputs.skip-template-validation }} |
-          | Skip S3 Upload | ${{ inputs.skip-s3-upload }} |
+          | Environment | \`${{ env.ENVIRONMENT }}\` |
+          | AWS Region | \`${{ env.AWS_REGION }}\` |
+          | AWS Account ID | \`${{ env.AWS_ACCOUNT_ID }}\` |
+          | OIDC Role Name | \`${{ env.OIDC_ROLE_NAME }}\` |
+          | S3 Bucket | \`${{ env.CFN_TEMPLATES_S3_BUCKET }}\` |
+          | Stack Name (Base) | \`${{ inputs.stack-name }}\` |
+          | Template File | \`${{ inputs.template-file }}\` |
+          | Parameters File | \`${{ inputs.parameters-file }}\` |
+          | Concurrency Group | \`${{ inputs.concurrency-group }}\` |
+          | Skip Template Validation | \`${{ inputs.skip-template-validation }}\` |
+          | Skip S3 Upload | \`${{ inputs.skip-s3-upload }}\` |
           EOF
 
       - name: Check if Artifact Exists
