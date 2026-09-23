@@ -98,8 +98,8 @@ jobs:
           | Environment | `${{ inputs.environment }}` |
           | AWS Region | `${{ env.AWS_REGION }}` |
           | AWS Account ID | `${{ env.AWS_ACCOUNT_ID }}` |
-          | OIDC Role Name | `${{ env.OIDC_ROLE_NAME }}` |
-          | S3 Bucket | `${{ env.CFN_TEMPLATES_S3_BUCKET }}` |
+          | OIDC Role Name | `${{ vars.OIDC_ROLE_NAME }}` |
+          | S3 Bucket | `${{ vars.CFN_TEMPLATES_S3_BUCKET }}` |
           | Stack Name (Base) | `${{ inputs.stack-name }}` |
           | Template File | `${{ inputs.template-file }}` |
           | Parameters File | `${{ inputs.parameters-file }}` |
@@ -201,7 +201,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify AWS Credentials
@@ -223,7 +223,7 @@ jobs:
         if: ${{ !inputs.skip-template-validation }}
         uses: subhamay-bhattacharyya-gha/cfn-validate-action@main
         with:
-          aws-role-arn: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
+          aws-role-arn: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
           cloudformation-dir: ${{ steps.template-paths.outputs.directory }}
           template-file: ${{ steps.template-paths.outputs.filename }}
           aws-region: ${{ env.AWS_REGION }}
@@ -257,7 +257,7 @@ jobs:
         if: ${{ !inputs.skip-s3-upload }}
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Upload template to S3 and set output
@@ -267,9 +267,9 @@ jobs:
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
           echo "Uploading template to S3..."
-          aws s3 cp ${{ inputs.template-file }} "s3://${{ env.CFN_TEMPLATES_S3_BUCKET }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
+          aws s3 cp ${{ inputs.template-file }} "s3://${{ vars.CFN_TEMPLATES_S3_BUCKET }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
 
-          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ vars.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "Template URL: ${TEMPLATE_URL}"
           echo "✅ Template uploaded to S3"
@@ -280,7 +280,7 @@ jobs:
         run: |
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
-          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ vars.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "⏭️  Skipping S3 upload - using existing template from S3"
           echo "Template URL: ${TEMPLATE_URL}"
@@ -303,7 +303,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.OIDC_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Prepare CloudFormation Parameters with CiSuffix
@@ -368,8 +368,8 @@ jobs:
             echo "| Environment | ${{ inputs.environment }} |"
             echo "| AWS Region | ${{ env.AWS_REGION }} |"
             echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
-            echo "| OIDC Role Name | ${{ env.OIDC_ROLE_NAME }} |"
-            echo "| CFN Templates S3 Bucket | ${{ env.CFN_TEMPLATES_S3_BUCKET}} |"
+            echo "| OIDC Role Name | ${{ vars.OIDC_ROLE_NAME }} |"
+            echo "| CFN Templates S3 Bucket | ${{ vars.CFN_TEMPLATES_S3_BUCKET}} |"
             echo "| Stack Name | ${{ inputs.stack-name != '' && inputs.stack-name || 'default (repository name)' }} |"
             echo "| Template File | ${{ inputs.template-file }} |"
             echo "| Parameters File | ${{ inputs.parameters-file }} |"
@@ -482,7 +482,7 @@ jobs:
           template-url: ${{ needs.upload-to-s3.outputs.template_url }}
           parameters-file: ${{ steps.prepare-params.outputs.parameters_file }}
           aws-account-id: ${{ env.AWS_ACCOUNT_ID }}
-          oidc-role-name: ${{ env.OIDC_ROLE_NAME }}
+          oidc-role-name: ${{ vars.OIDC_ROLE_NAME }}
 
       - name: Handle Deployment Result
         shell: bash
