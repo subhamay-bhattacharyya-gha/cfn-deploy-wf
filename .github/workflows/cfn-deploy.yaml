@@ -206,7 +206,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify AWS Credentials
@@ -228,7 +228,7 @@ jobs:
         if: ${{ !inputs.skip-template-validation }}
         uses: subhamay-bhattacharyya-gha/cfn-validate-action@main
         with:
-          aws-role-arn: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
+          aws-role-arn: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
           cloudformation-dir: ${{ steps.template-paths.outputs.directory }}
           template-file: ${{ steps.template-paths.outputs.filename }}
           aws-region: ${{ env.AWS_REGION }}
@@ -267,7 +267,7 @@ jobs:
         if: ${{ !inputs.skip-s3-upload }}
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Upload template to S3 and set output
@@ -309,7 +309,7 @@ jobs:
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
-      OIDC_ROLE_NAME: ${{ vars.OIDC_ROLE_NAME }}
+      AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
       CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
     steps:
       - name: Checkout
@@ -318,7 +318,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ vars.OIDC_ROLE_NAME }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Prepare CloudFormation Parameters with CiSuffix
@@ -383,7 +383,7 @@ jobs:
             echo "| Environment | ${{ inputs.environment }} |"
             echo "| AWS Region | ${{ env.AWS_REGION }} |"
             echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
-            echo "| OIDC Role Name | ${{ vars.OIDC_ROLE_NAME }} |"
+            echo "| OIDC Role Name | ${{ env.AWS_OIDC_ROLE_NAME }} |"
             echo "| CFN Templates S3 Bucket | ${{ vars.CFN_TEMPLATES_S3_BUCKET}} |"
             echo "| Stack Name | ${{ inputs.stack-name != '' && inputs.stack-name || 'default (repository name)' }} |"
             echo "| Template File | ${{ inputs.template-file }} |"
@@ -497,7 +497,7 @@ jobs:
           template-url: ${{ needs.upload-to-s3.outputs.template_url }}
           parameters-file: ${{ steps.prepare-params.outputs.parameters_file }}
           aws-account-id: ${{ env.AWS_ACCOUNT_ID }}
-          oidc-role-name: ${{ vars.OIDC_ROLE_NAME }}
+          oidc-role-name: ${{ env.AWS_OIDC_ROLE_NAME }}
 
       - name: Handle Deployment Result
         shell: bash
