@@ -64,7 +64,7 @@ env:
 jobs:
   validate:
     name: Validate CloudFormation Template
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write
@@ -74,7 +74,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
-      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
+      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}
     outputs:
       ci-suffix: ${{ steps.ci-suffix.outputs.suffix }}
       stack-name: ${{ steps.prepare-stack-name.outputs.stack-name }}
@@ -104,7 +104,7 @@ jobs:
           | AWS Region | `${{ env.AWS_REGION }}` |
           | AWS Account ID | `${{ env.AWS_ACCOUNT_ID }}` |
           | OIDC Role Name | `${{ env.AWS_OIDC_ROLE_NAME }}` |
-          | S3 Bucket | `${{ vars.CFN_TEMPLATES_S3_BUCKET }}` |
+          | S3 Bucket | `${{ env.CFN_TEMPLATES_S3_BUCKET }}` |
           | Stack Name (Base) | `${{ inputs.stack-name }}` |
           | Template File | `${{ inputs.template-file }}` |
           | Parameters File | `${{ inputs.parameters-file }}` |
@@ -246,7 +246,7 @@ jobs:
 
   upload-to-s3:
     name: Upload Template to S3
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: ${{ inputs.environment }}
     needs: validate
     permissions:
@@ -256,7 +256,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
-      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
+      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}
     outputs:
       template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
     steps:
@@ -277,9 +277,9 @@ jobs:
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
           echo "Uploading template to S3..."
-          aws s3 cp ${{ inputs.template-file }} "s3://${{ vars.CFN_TEMPLATES_S3_BUCKET }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
+          aws s3 cp ${{ inputs.template-file }} "s3://${{ env.CFN_TEMPLATES_S3_BUCKET }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
 
-          TEMPLATE_URL="https://${{ vars.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "Template URL: ${TEMPLATE_URL}"
           echo "✅ Template uploaded to S3"
@@ -290,14 +290,14 @@ jobs:
         run: |
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
-          TEMPLATE_URL="https://${{ vars.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "⏭️  Skipping S3 upload - using existing template from S3"
           echo "Template URL: ${TEMPLATE_URL}"
 
   deploy:
     name: Deploy Stack
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: ${{ inputs.environment }}
     needs:
       - validate
@@ -310,7 +310,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
-      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}
+      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -384,7 +384,7 @@ jobs:
             echo "| AWS Region | ${{ env.AWS_REGION }} |"
             echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
             echo "| OIDC Role Name | ${{ env.AWS_OIDC_ROLE_NAME }} |"
-            echo "| CFN Templates S3 Bucket | ${{ vars.CFN_TEMPLATES_S3_BUCKET}} |"
+            echo "| CFN Templates S3 Bucket | ${{ env.CFN_TEMPLATES_S3_BUCKET }} |"
             echo "| Stack Name | ${{ inputs.stack-name != '' && inputs.stack-name || 'default (repository name)' }} |"
             echo "| Template File | ${{ inputs.template-file }} |"
             echo "| Parameters File | ${{ inputs.parameters-file }} |"
@@ -486,6 +486,46 @@ jobs:
           echo "ℹ️  Verify that your parameters are in the correct format"
           echo "ℹ️  Expected format for CloudFormation: {\"ParameterKey\": \"ParameterValue\"}"
           echo ""
+
+      - name: Validate Parameters Against Template
+        shell: bash
+        run: |
+          PARAMS_FILE="${{ steps.prepare-params.outputs.parameters_file }}"
+          TEMPLATE_URL="${{ needs.upload-to-s3.outputs.template_url }}"
+
+          echo "🔍 Pre-flight check: Validating parameters against template..."
+          echo ""
+
+          # Get declared parameters from template
+          echo "📋 Fetching declared parameters from template..."
+          declared=$(aws cloudformation validate-template --template-url "$TEMPLATE_URL" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'Parameters[].ParameterKey' --output text | tr '\t' '\n' | sort)
+
+          # Get passed parameters from parameters file
+          echo "📋 Extracting passed parameters from file..."
+          passed=$(jq -r '.[].ParameterKey' "$PARAMS_FILE" 2>/dev/null | sort)
+
+          # Find unknown parameters
+          unknown=$(comm -13 <(echo "$declared") <(echo "$passed"))
+
+          echo ""
+          echo "✅ Declared parameters in template:"
+          echo "$declared" | sed 's/^/   - /'
+          echo ""
+          echo "📝 Passed parameters:"
+          echo "$passed" | sed 's/^/   - /'
+          echo ""
+
+          if [[ -n "$unknown" ]]; then
+            echo "❌ ERROR: Parameters not declared in template:"
+            echo "$unknown" | sed 's/^/   - /'
+            echo ""
+            echo "::error::Parameters not declared in template: $(echo "$unknown" | tr '\n' ' ')"
+            exit 1
+          fi
+
+          echo "✅ All parameters are declared in the template"
 
       - name: Deploy CloudFormation Stack
         id: deploy
