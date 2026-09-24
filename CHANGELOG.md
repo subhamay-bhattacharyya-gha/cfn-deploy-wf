@@ -1,3 +1,20 @@
+# [1.3.0](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/compare/v1.2.0...v1.3.0) (2026-09-24)
+
+
+### Bug Fixes
+
+* comment out cfn-templates-s3-bucket input in CloudFormation deploy workflow ([cb841c8](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/cb841c8f97470eaedd08b0c91afc4853969c4b86))
+* make aws-region input optional and update cfn-deploy-action usage ([6b7cfe1](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/6b7cfe1ef93c71bdaa04bbfb6ed59aa91968fa03))
+* normalize CI suffix to lowercase and update stack name handling ([da29bb3](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/da29bb3650c5e61aed0fd81655e652eb29c1465f))
+* update repository URLs after repository rename to cfn-deploy-wf ([22f1041](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/22f10410a71f0bda3e9a3c532d4cfec635f04de2)), closes [#18](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/issues/18)
+
+
+### Features
+
+* add CLAUDE.md for project guidance, update LICENSE and CONTRIBUTING.md links, and remove obsolete parameters.json ([e0ff24b](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/e0ff24b704a627f0370a6c2d8a1c9b68db0c0c7f))
+* add debug info summary step to CloudFormation deploy workflow ([5d8c426](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/5d8c4260a4e8e401690765a0260a7611ad8a5a9b))
+* update CODEOWNERS and add Claude Code Review workflow ([5c772f6](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/5c772f6304dde8d4131c960abef7b17b06dc48ba))
+
 # [1.2.0](https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf/compare/v1.1.0...v1.2.0) (2026-09-15)
 
 
