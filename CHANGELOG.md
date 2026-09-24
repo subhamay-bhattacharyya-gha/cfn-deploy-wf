@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/compare/v1.3.0...v1.3.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* update workflow configurations and README badges for clarity ([9d8d321](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/9d8d321e894998879ee3c82a4f9d5a66020b16bf))
+
 # [1.3.0](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/compare/v1.2.0...v1.3.0) (2026-09-24)
 
 
