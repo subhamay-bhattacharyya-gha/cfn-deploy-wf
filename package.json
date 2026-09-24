@@ -26,13 +26,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf.git"
+    "url": "git+https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf.git"
   },
   "author": "Subhamay Bhattacharyya",
   "license": "MIT",
   "keywords": [],
   "bugs": {
-    "url": "https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf/issues"
+    "url": "https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/issues"
   },
-  "homepage": "https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf#readme"
+  "homepage": "https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf#readme"
 }
