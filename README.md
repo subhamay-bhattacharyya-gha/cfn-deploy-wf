@@ -1,6 +1,6 @@
 # CloudFormation Deploy Workflow
 
-![Built with Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)&nbsp;![Release](https://github.com/subhamay-bhattacharyya-gha/cloudformation-deploy-wf/actions/workflows/release.yaml/badge.svg)&nbsp;![Commit Activity](https://img.shields.io/github/commit-activity/t/subhamay-bhattacharyya-gha/cloudformation-deploy-wf)&nbsp;![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya-gha/cloudformation-deploy-wf)&nbsp;![Release Date](https://img.shields.io/github/release-date/subhamay-bhattacharyya-gha/cloudformation-deploy-wf)&nbsp;![Repo Size](https://img.shields.io/github/repo-size/subhamay-bhattacharyya-gha/cloudformation-deploy-wf)&nbsp;![File Count](https://img.shields.io/github/directory-file-count/subhamay-bhattacharyya-gha/cloudformation-deploy-wf)&nbsp;![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya-gha/cloudformation-deploy-wf)&nbsp;![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-orange?style=flat)&nbsp;![Top Language](https://img.shields.io/github/languages/top/subhamay-bhattacharyya-gha/cloudformation-deploy-wf)&nbsp;![Custom Endpoint](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bsubhamay/abbe62f55bd98d1fa39302fc416e99cb/raw/cloudformation-deploy-wf.json?)
+![Built with Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)&nbsp;![Release](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/actions/workflows/release.yaml/badge.svg)&nbsp;![Commit Activity](https://img.shields.io/github/commit-activity/t/subhamay-bhattacharyya-gha/cfn-deploy-wf)&nbsp;![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya-gha/cfn-deploy-wf)&nbsp;![Release Date](https://img.shields.io/github/release-date/subhamay-bhattacharyya-gha/cfn-deploy-wf)&nbsp;![Repo Size](https://img.shields.io/github/repo-size/subhamay-bhattacharyya-gha/cfn-deploy-wf)&nbsp;![File Count](https://img.shields.io/github/directory-file-count/subhamay-bhattacharyya-gha/cfn-deploy-wf)&nbsp;![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya-gha/cfn-deploy-wf)&nbsp;![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-orange?style=flat)&nbsp;![Top Language](https://img.shields.io/github/languages/top/subhamay-bhattacharyya-gha/cfn-deploy-wf)&nbsp;![Custom Endpoint](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bsubhamay/abbe62f55bd98d1fa39302fc416e99cb/raw/cfn-deploy-wf.json?)
 
 A reusable GitHub Actions workflow for deploying CloudFormation stacks with validation, linting, S3 upload, and parameterized deployments.
 
@@ -54,7 +54,7 @@ on:
 
 jobs:
   deploy:
-    uses: subhamay-bhattacharyya-gha/cloudformation-deploy-wf/.github/workflows/cfn-deploy.yaml@main
+    uses: subhamay-bhattacharyya-gha/cfn-deploy-wf/.github/workflows/cfn-deploy.yaml@main
     with:
       environment: ${{ github.event.inputs.environment }}
       aws-region: us-east-1
