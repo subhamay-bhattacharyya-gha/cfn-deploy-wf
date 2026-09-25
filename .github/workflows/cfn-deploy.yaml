@@ -527,10 +527,40 @@ jobs:
         shell: bash
         run: |
           STACK_NAME="${{ needs.validate.outputs.stack-name }}"
+          STACK_PREFIX="${{ inputs.stack-name }}"
           REGION="${{ env.AWS_REGION }}"
 
-          echo "🗑️  Checking if stack exists: $STACK_NAME"
+          echo "🗑️  Checking for stacks in ROLLBACK_COMPLETE state with prefix: $STACK_PREFIX"
 
+          # Get all stacks in ROLLBACK_COMPLETE state with matching prefix
+          ROLLBACK_STACKS=$(aws cloudformation list-stacks \
+            --stack-status-filter ROLLBACK_COMPLETE \
+            --region "$REGION" \
+            --query "StackSummaries[?contains(StackName, '$STACK_PREFIX')].StackName" \
+            --output text)
+
+          if [[ -n "$ROLLBACK_STACKS" ]]; then
+            echo "📋 Found ROLLBACK_COMPLETE stacks:"
+            echo "$ROLLBACK_STACKS" | tr '\t' '\n' | sed 's/^/   /'
+            echo ""
+            echo "🗑️  Deleting ROLLBACK_COMPLETE stacks..."
+            for stack in $ROLLBACK_STACKS; do
+              echo "   Deleting: $stack"
+              aws cloudformation delete-stack --stack-name "$stack" --region "$REGION"
+            done
+            echo ""
+            echo "⏳ Waiting for stack deletions to complete..."
+            for stack in $ROLLBACK_STACKS; do
+              echo "   Waiting for: $stack"
+              aws cloudformation wait stack-delete-complete --stack-name "$stack" --region "$REGION" || true
+            done
+            echo "✅ All ROLLBACK_COMPLETE stacks deleted"
+            echo ""
+          else
+            echo "ℹ️  No ROLLBACK_COMPLETE stacks found with prefix: $STACK_PREFIX"
+          fi
+
+          echo "🔍 Checking if current stack exists: $STACK_NAME"
           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null; then
             echo "🗑️  Stack exists. Deleting stack: $STACK_NAME"
             aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION"
