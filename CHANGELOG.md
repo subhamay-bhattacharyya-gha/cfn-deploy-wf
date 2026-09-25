@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/compare/v1.3.1...v1.3.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* fix CFN_TEMPLATES_S3_BUCKET environment variable interpolation ([803a2c6](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/803a2c6a7202b08965e3e01e71bdb13961249eb2))
+
 ## [1.3.1](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/compare/v1.3.0...v1.3.1) (2026-09-24)
 
 
