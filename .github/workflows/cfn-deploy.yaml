@@ -488,42 +488,71 @@ jobs:
       - name: Validate Parameters Against Template
         shell: bash
         run: |
+          set -e
           PARAMS_FILE="${{ steps.prepare-params.outputs.parameters_file }}"
           TEMPLATE_URL="${{ needs.upload-to-s3.outputs.template_url }}"
+          ERRORS=0
 
           echo "🔍 Pre-flight check: Validating parameters against template..."
           echo ""
 
-          # Get declared parameters from template
-          echo "📋 Fetching declared parameters from template..."
-          declared=$(aws cloudformation validate-template --template-url "$TEMPLATE_URL" \
-            --region "${{ env.AWS_REGION }}" \
-            --query 'Parameters[].ParameterKey' --output text | tr '\t' '\n' | sort)
+          # Fetch template info
+          echo "📋 Fetching template parameters..."
+          template_info=$(aws cloudformation validate-template --template-url "$TEMPLATE_URL" \
+            --region "${{ env.AWS_REGION }}")
+
+          declared=$(echo "$template_info" | jq -r '.Parameters[].ParameterKey' | sort)
+          required=$(echo "$template_info" | jq -r '.Parameters[] | select(.DefaultValue == null) | .ParameterKey' | sort)
 
           # Get passed parameters from parameters file
           echo "📋 Extracting passed parameters from file..."
           passed=$(jq -r '.[].ParameterKey' "$PARAMS_FILE" 2>/dev/null | sort)
-
-          # Find unknown parameters
-          unknown=$(comm -13 <(echo "$declared") <(echo "$passed"))
+          passed_values=$(jq -r '.[] | "\(.ParameterKey)=\(.ParameterValue)"' "$PARAMS_FILE" 2>/dev/null)
 
           echo ""
-          echo "✅ Declared parameters in template:"
-          echo "$declared" | sed 's/^/   - /'
-          echo ""
-          echo "📝 Passed parameters:"
-          echo "$passed" | sed 's/^/   - /'
+          echo "📊 Parameter Validation Report:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Declared parameters in template (Required marked with *):"
+          echo "$template_info" | jq -r '.Parameters[] | (if .DefaultValue == null then "* " else "  " end) + .ParameterKey' | sed 's/^/   /'
           echo ""
 
+          # Check for unknown parameters (passed but not declared)
+          unknown=$(comm -23 <(echo "$passed") <(echo "$declared"))
           if [[ -n "$unknown" ]]; then
-            echo "❌ ERROR: Parameters not declared in template:"
-            echo "$unknown" | sed 's/^/   - /'
+            echo "❌ ERROR: Unknown parameters not declared in template:"
+            echo "$unknown" | sed 's/^/   /'
             echo ""
-            echo "::error::Parameters not declared in template: $(echo "$unknown" | tr '\n' ' ')"
-            exit 1
+            ERRORS=$((ERRORS + 1))
           fi
 
-          echo "✅ All parameters are declared in the template"
+          # Check for missing required parameters
+          missing_required=$(comm -23 <(echo "$required") <(echo "$passed"))
+          if [[ -n "$missing_required" ]]; then
+            echo "❌ ERROR: Missing required parameters:"
+            echo "$missing_required" | sed 's/^/   /'
+            echo ""
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for empty parameter values
+          empty_params=$(echo "$passed_values" | grep '=$' || true)
+          if [[ -n "$empty_params" ]]; then
+            echo "⚠️  WARNING: Parameters with empty values:"
+            echo "$empty_params" | sed 's/^/   /'
+            echo ""
+          fi
+
+          # Summary
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          if [[ $ERRORS -eq 0 ]]; then
+            echo "✅ All validations passed"
+            exit 0
+          else
+            echo "❌ Validation failed with $ERRORS error(s)"
+            echo ""
+            echo "::error::Parameter validation failed - see details above"
+            exit 1
+          fi
 
       - name: Deploy CloudFormation Stack
         id: deploy
