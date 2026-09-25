@@ -137,7 +137,7 @@ jobs:
       - name: Download Previous Artifacts
         id: download-artifact
         if: steps.check-artifact.outputs.artifact-exists == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: cfn-deploy-params
           path: .artifacts
@@ -425,7 +425,7 @@ jobs:
       CFN_TEMPLATE_S3_BUCKET_NAME: ${{ vars.CFN_TEMPLATE_S3_BUCKET_NAME }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v5
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
@@ -516,7 +516,7 @@ jobs:
 
       - name: Upload Parameters as Artifact (for failure recovery)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: cfn-deploy-params
           path: ${{ steps.prepare-params.outputs.parameters_file }}
