@@ -522,75 +522,119 @@ jobs:
           path: ${{ steps.prepare-params.outputs.parameters_file }}
           retention-days: 30
 
-      - name: Delete Existing Stack in CI Environment
+      - name: List ROLLBACK_COMPLETE Stacks with Prefix
+        id: list-rollback-stacks
+        if: inputs.environment == 'ci'
+        shell: bash
+        run: |
+          STACK_PREFIX="${{ inputs.stack-name }}"
+          REGION="${{ env.AWS_REGION }}"
+
+          echo "🔍 Listing stacks in ROLLBACK_COMPLETE state..."
+          echo ""
+
+          # Get all stacks in ROLLBACK_COMPLETE state
+          ALL_STACKS=$(aws cloudformation list-stacks \
+            --stack-status-filter ROLLBACK_COMPLETE \
+            --region "$REGION" \
+            --query "StackSummaries[].StackName" \
+            --output json)
+
+          echo "All ROLLBACK_COMPLETE stacks (raw): $ALL_STACKS"
+          echo ""
+
+          # Filter stacks that start with the prefix
+          if [[ -z "$STACK_PREFIX" ]]; then
+            echo "⚠️  Stack prefix is empty, will delete all ROLLBACK_COMPLETE stacks"
+            FILTERED_STACKS=$(echo "$ALL_STACKS" | jq -r '.[]')
+          else
+            echo "🔎 Filtering for stacks starting with: $STACK_PREFIX"
+            FILTERED_STACKS=$(echo "$ALL_STACKS" | jq -r ".[] | select(startswith(\"$STACK_PREFIX\"))")
+          fi
+
+          # Convert to array and count
+          STACKS_ARRAY=($(echo "$FILTERED_STACKS" | tr '\n' ' '))
+          STACK_COUNT=${#STACKS_ARRAY[@]}
+
+          echo "Found $STACK_COUNT ROLLBACK_COMPLETE stacks matching the prefix"
+          echo ""
+
+          # Save to output for next step
+          echo "stacks=$(echo "$FILTERED_STACKS" | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> $GITHUB_OUTPUT
+          echo "count=$STACK_COUNT" >> $GITHUB_OUTPUT
+
+          # Print to step summary
+          {
+            echo "## 🗑️ ROLLBACK_COMPLETE Stacks Found"
+            echo ""
+            echo "**Prefix:** \`$STACK_PREFIX\`"
+            echo ""
+            echo "**Count:** $STACK_COUNT"
+            echo ""
+            if [[ $STACK_COUNT -gt 0 ]]; then
+              echo "**Stacks:**"
+              echo ""
+              echo "\`\`\`"
+              echo "$FILTERED_STACKS"
+              echo "\`\`\`"
+            else
+              echo "No ROLLBACK_COMPLETE stacks found matching the prefix."
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Delete ROLLBACK_COMPLETE Stacks
+        if: inputs.environment == 'ci' && steps.list-rollback-stacks.outputs.count > 0
+        shell: bash
+        run: |
+          REGION="${{ env.AWS_REGION }}"
+          STACKS_JSON='${{ steps.list-rollback-stacks.outputs.stacks }}'
+
+          # Parse stacks from JSON array
+          STACKS=$(echo "$STACKS_JSON" | jq -r '.[]')
+
+          if [[ -z "$STACKS" ]]; then
+            echo "No stacks to delete"
+            exit 0
+          fi
+
+          echo "🗑️  Initiating deletion of ROLLBACK_COMPLETE stacks..."
+          echo ""
+
+          # Initiate deletion for all stacks
+          for stack in $STACKS; do
+            if [[ -n "$stack" ]]; then
+              echo "   → Initiating deletion: $stack"
+              aws cloudformation delete-stack --stack-name "$stack" --region "$REGION" || echo "   ⚠️  Error deleting: $stack"
+            fi
+          done
+
+          echo ""
+          echo "⏳ Waiting for all ROLLBACK_COMPLETE stacks to be deleted..."
+          echo ""
+
+          # Wait for all stacks to be deleted
+          for stack in $STACKS; do
+            if [[ -n "$stack" ]]; then
+              echo "   ⏳ Waiting for deletion: $stack"
+              aws cloudformation wait stack-delete-complete --stack-name "$stack" --region "$REGION" 2>&1 || true
+              echo "   ✅ Deleted: $stack"
+            fi
+          done
+
+          echo ""
+          echo "✅ All ROLLBACK_COMPLETE stacks deleted successfully"
+
+      - name: Delete Current Stack if Exists
         if: inputs.environment == 'ci'
         shell: bash
         run: |
           STACK_NAME="${{ needs.validate.outputs.stack-name }}"
           REGION="${{ env.AWS_REGION }}"
 
-          echo "🗑️  Checking for stacks in ROLLBACK_COMPLETE state"
-          echo ""
+          echo "🔍 Checking if current stack exists: $STACK_NAME"
 
-          # Get all stacks in ROLLBACK_COMPLETE state
-          echo "📋 Fetching all ROLLBACK_COMPLETE stacks..."
-          ALL_ROLLBACK_STACKS=$(aws cloudformation list-stacks \
-            --stack-status-filter ROLLBACK_COMPLETE \
-            --region "$REGION" \
-            --query "StackSummaries[].StackName" \
-            --output text 2>&1)
-
-          echo "Fetched stacks: $ALL_ROLLBACK_STACKS"
-          echo ""
-
-          # Print to GitHub Summary
-          {
-            echo "## 🗑️ CloudFormation Stack Cleanup"
-            echo ""
-            echo "### ROLLBACK_COMPLETE Stacks Found"
-            if [[ -n "$ALL_ROLLBACK_STACKS" ]]; then
-              echo "\`\`\`"
-              echo "$ALL_ROLLBACK_STACKS" | tr ' ' '\n'
-              echo "\`\`\`"
-              echo ""
-              echo "### Deletion Status"
-            else
-              echo "None found"
-              echo ""
-            fi
-          } >> $GITHUB_STEP_SUMMARY
-
-          # Delete all ROLLBACK_COMPLETE stacks
-          if [[ -n "$ALL_ROLLBACK_STACKS" ]]; then
-            echo "🗑️  Deleting all ROLLBACK_COMPLETE stacks..."
-            for stack in $ALL_ROLLBACK_STACKS; do
-              echo "   → Initiating deletion of: $stack"
-              if aws cloudformation delete-stack --stack-name "$stack" --region "$REGION" 2>&1; then
-                echo "   ✅ Deletion initiated: $stack"
-              else
-                echo "   ⚠️  Failed to initiate deletion: $stack"
-              fi
-            done
-            echo ""
-            echo "⏳ Waiting for all ROLLBACK_COMPLETE stack deletions to complete..."
-            for stack in $ALL_ROLLBACK_STACKS; do
-              echo "   ⏳ Waiting for: $stack"
-              if aws cloudformation wait stack-delete-complete --stack-name "$stack" --region "$REGION" 2>&1; then
-                echo "   ✅ Deleted: $stack"
-              else
-                echo "   ⚠️  Wait timeout or error: $stack"
-              fi
-            done
-            echo ""
-            echo "✅ ROLLBACK_COMPLETE stack cleanup complete"
-          else
-            echo "ℹ️  No ROLLBACK_COMPLETE stacks found"
-          fi
-
-          echo ""
-          echo "🔍 Checking if stack exists: $STACK_NAME"
           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null; then
-            echo "   ℹ️  Stack exists in normal state. Deleting: $STACK_NAME"
+            echo "   ℹ️  Stack exists. Deleting: $STACK_NAME"
             aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION"
 
             echo "⏳ Waiting for stack deletion to complete..."
