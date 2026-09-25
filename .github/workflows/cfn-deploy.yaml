@@ -533,54 +533,62 @@ jobs:
           echo "🔍 Listing stacks in ROLLBACK_COMPLETE state..."
           echo ""
 
-          # Get all stacks in ROLLBACK_COMPLETE state
-          ALL_STACKS=$(aws cloudformation list-stacks \
+          # Get all stacks in ROLLBACK_COMPLETE state as JSON
+          echo "Fetching ROLLBACK_COMPLETE stacks from region: $REGION"
+          ALL_STACKS_JSON=$(aws cloudformation list-stacks \
             --stack-status-filter ROLLBACK_COMPLETE \
             --region "$REGION" \
             --query "StackSummaries[].StackName" \
-            --output json)
+            --output json 2>&1)
 
-          echo "All ROLLBACK_COMPLETE stacks (raw): $ALL_STACKS"
+          echo "AWS API response: $ALL_STACKS_JSON"
           echo ""
 
-          # Filter stacks that start with the prefix
+          # Parse and filter stacks
           if [[ -z "$STACK_PREFIX" ]]; then
-            echo "⚠️  Stack prefix is empty, will delete all ROLLBACK_COMPLETE stacks"
-            FILTERED_STACKS=$(echo "$ALL_STACKS" | jq -r '.[]')
+            echo "⚠️  Stack prefix is empty, using all ROLLBACK_COMPLETE stacks"
+            FILTERED_STACKS_JSON=$(echo "$ALL_STACKS_JSON" | jq -c '.')
           else
-            echo "🔎 Filtering for stacks starting with: $STACK_PREFIX"
-            FILTERED_STACKS=$(echo "$ALL_STACKS" | jq -r ".[] | select(startswith(\"$STACK_PREFIX\"))")
+            echo "🔎 Filtering for stacks starting with prefix: '$STACK_PREFIX'"
+            # Filter for stacks matching the prefix
+            FILTERED_STACKS_JSON=$(echo "$ALL_STACKS_JSON" | jq -c "map(select(startswith(\"$STACK_PREFIX\")))")
           fi
 
-          # Convert to array and count
-          STACKS_ARRAY=($(echo "$FILTERED_STACKS" | tr '\n' ' '))
-          STACK_COUNT=${#STACKS_ARRAY[@]}
-
-          echo "Found $STACK_COUNT ROLLBACK_COMPLETE stacks matching the prefix"
+          echo "Filtered stacks JSON: $FILTERED_STACKS_JSON"
           echo ""
 
-          # Save to output for next step
-          echo "stacks=$(echo "$FILTERED_STACKS" | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> $GITHUB_OUTPUT
+          # Get stack count
+          STACK_COUNT=$(echo "$FILTERED_STACKS_JSON" | jq 'length')
+          echo "Found $STACK_COUNT ROLLBACK_COMPLETE stacks matching prefix: '$STACK_PREFIX'"
+
+          # Save outputs
+          echo "stacks=$FILTERED_STACKS_JSON" >> $GITHUB_OUTPUT
           echo "count=$STACK_COUNT" >> $GITHUB_OUTPUT
 
           # Print to step summary
           {
-            echo "## 🗑️ ROLLBACK_COMPLETE Stacks Found"
+            echo "## 🗑️ CloudFormation Stack Cleanup - ROLLBACK_COMPLETE Stacks"
             echo ""
-            echo "**Prefix:** \`$STACK_PREFIX\`"
+            echo "**Stack Prefix:** \`$STACK_PREFIX\`"
             echo ""
-            echo "**Count:** $STACK_COUNT"
+            echo "**Region:** \`$REGION\`"
             echo ""
+            echo "**Stacks Found:** \`$STACK_COUNT\`"
+            echo ""
+
             if [[ $STACK_COUNT -gt 0 ]]; then
-              echo "**Stacks:**"
+              echo "### Stacks to Delete:"
               echo ""
-              echo "\`\`\`"
-              echo "$FILTERED_STACKS"
+              echo "\`\`\`json"
+              echo "$FILTERED_STACKS_JSON" | jq '.' 2>/dev/null || echo "$FILTERED_STACKS_JSON"
               echo "\`\`\`"
             else
-              echo "No ROLLBACK_COMPLETE stacks found matching the prefix."
+              echo "**Status:** No ROLLBACK_COMPLETE stacks found matching the prefix."
             fi
           } >> $GITHUB_STEP_SUMMARY
+
+          echo ""
+          echo "✅ Stack listing complete"
 
       - name: Delete ROLLBACK_COMPLETE Stacks
         if: inputs.environment == 'ci' && steps.list-rollback-stacks.outputs.count > 0
@@ -589,40 +597,58 @@ jobs:
           REGION="${{ env.AWS_REGION }}"
           STACKS_JSON='${{ steps.list-rollback-stacks.outputs.stacks }}'
 
-          # Parse stacks from JSON array
-          STACKS=$(echo "$STACKS_JSON" | jq -r '.[]')
+          echo "Stack JSON to process: $STACKS_JSON"
+          echo ""
 
-          if [[ -z "$STACKS" ]]; then
+          # Convert JSON array to space-separated list
+          STACKS=$(echo "$STACKS_JSON" | jq -r '.[] // empty')
+
+          echo "Stacks to delete:"
+          echo "$STACKS"
+          echo ""
+
+          # Count stacks
+          STACK_COUNT=$(echo "$STACKS" | grep -c . || echo 0)
+          if [[ $STACK_COUNT -eq 0 ]]; then
             echo "No stacks to delete"
             exit 0
           fi
 
+          echo "Total stacks to delete: $STACK_COUNT"
+          echo ""
           echo "🗑️  Initiating deletion of ROLLBACK_COMPLETE stacks..."
           echo ""
 
           # Initiate deletion for all stacks
-          for stack in $STACKS; do
-            if [[ -n "$stack" ]]; then
+          while IFS= read -r stack; do
+            if [[ -n "$stack" && "$stack" != "null" ]]; then
               echo "   → Initiating deletion: $stack"
-              aws cloudformation delete-stack --stack-name "$stack" --region "$REGION" || echo "   ⚠️  Error deleting: $stack"
+              if aws cloudformation delete-stack --stack-name "$stack" --region "$REGION" 2>&1; then
+                echo "      ✅ Deletion initiated"
+              else
+                echo "      ⚠️  Error initiating deletion"
+              fi
             fi
-          done
+          done <<< "$STACKS"
 
           echo ""
           echo "⏳ Waiting for all ROLLBACK_COMPLETE stacks to be deleted..."
           echo ""
 
           # Wait for all stacks to be deleted
-          for stack in $STACKS; do
-            if [[ -n "$stack" ]]; then
+          while IFS= read -r stack; do
+            if [[ -n "$stack" && "$stack" != "null" ]]; then
               echo "   ⏳ Waiting for deletion: $stack"
-              aws cloudformation wait stack-delete-complete --stack-name "$stack" --region "$REGION" 2>&1 || true
-              echo "   ✅ Deleted: $stack"
+              if aws cloudformation wait stack-delete-complete --stack-name "$stack" --region "$REGION" 2>&1; then
+                echo "      ✅ Fully deleted"
+              else
+                echo "      ⚠️  Wait completed with timeout (stack may still be deleting)"
+              fi
             fi
-          done
+          done <<< "$STACKS"
 
           echo ""
-          echo "✅ All ROLLBACK_COMPLETE stacks deleted successfully"
+          echo "✅ All ROLLBACK_COMPLETE stacks deletion initiated and waited for"
 
       - name: Delete Current Stack if Exists
         if: inputs.environment == 'ci'
