@@ -79,11 +79,6 @@ jobs:
       stack-name: ${{ steps.prepare-stack-name.outputs.stack-name }}
       parameters-file-path: ${{ steps.params-path.outputs.path }}
     steps:
-      - name: Set S3 Bucket Environment Variable
-        run: |
-          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
-          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
-
       - name: Validate Environment
         id: validate-env
         shell: bash
@@ -108,7 +103,6 @@ jobs:
           | AWS Region | `${{ env.AWS_REGION }}` |
           | AWS Account ID | `${{ env.AWS_ACCOUNT_ID }}` |
           | OIDC Role Name | `${{ env.AWS_OIDC_ROLE_NAME }}` |
-          | S3 Bucket | `${{ env.CFN_TEMPLATES_S3_BUCKET }}` |
           | Stack Name (Base) | `${{ inputs.stack-name }}` |
           | Template File | `${{ inputs.template-file }}` |
           | Parameters File | `${{ inputs.parameters-file }}` |
@@ -260,14 +254,10 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
+      CFN_TEMPLATE_S3_BUCKET_NAME: ${{ vars.CFN_TEMPLATE_S3_BUCKET_NAME }}
     outputs:
       template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
     steps:
-      - name: Set S3 Bucket Environment Variable
-        run: |
-          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
-          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
-
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
@@ -285,9 +275,9 @@ jobs:
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
           echo "Uploading template to S3..."
-          aws s3 cp ${{ inputs.template-file }} "s3://${{ env.CFN_TEMPLATES_S3_BUCKET }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
+          aws s3 cp ${{ inputs.template-file }} "s3://${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
 
-          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "Template URL: ${TEMPLATE_URL}"
           echo "✅ Template uploaded to S3"
@@ -298,7 +288,7 @@ jobs:
         run: |
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
-          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "⏭️  Skipping S3 upload - using existing template from S3"
           echo "Template URL: ${TEMPLATE_URL}"
@@ -318,12 +308,8 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
+      CFN_TEMPLATE_S3_BUCKET_NAME: ${{ vars.CFN_TEMPLATE_S3_BUCKET_NAME }}
     steps:
-      - name: Set S3 Bucket Environment Variable
-        run: |
-          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
-          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
-
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
@@ -396,7 +382,7 @@ jobs:
             echo "| AWS Region | ${{ env.AWS_REGION }} |"
             echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
             echo "| OIDC Role Name | ${{ env.AWS_OIDC_ROLE_NAME }} |"
-            echo "| CFN Templates S3 Bucket | ${{ env.CFN_TEMPLATES_S3_BUCKET }} |"
+            echo "| CFN Templates S3 Bucket | ${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }} |"
             echo "| Stack Name | ${{ inputs.stack-name != '' && inputs.stack-name || 'default (repository name)' }} |"
             echo "| Template File | ${{ inputs.template-file }} |"
             echo "| Parameters File | ${{ inputs.parameters-file }} |"
