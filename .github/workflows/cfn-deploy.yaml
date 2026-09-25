@@ -293,6 +293,41 @@ jobs:
             passed=$(echo "$PARAMS" | jq -r '.[].ParameterKey' 2>/dev/null | sort || echo "")
           fi
 
+          {
+            echo "## 🔍 CloudFormation Parameter Validation"
+            echo ""
+            echo "### Declared Parameters in Template"
+            echo "\`\`\`"
+            if [[ -n "$declared" ]]; then
+              echo "$declared"
+            else
+              echo "(none)"
+            fi
+            echo "\`\`\`"
+            echo ""
+
+            # Check for unknown parameters (passed but not declared)
+            unknown=$(comm -23 <(echo "$passed") <(echo "$declared") 2>/dev/null || echo "")
+            if [[ -n "$unknown" ]]; then
+              echo "### ❌ Unknown Parameters"
+              echo "The following parameters are not declared in the template:"
+              echo "\`\`\`"
+              echo "$unknown"
+              echo "\`\`\`"
+              echo ""
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            if [[ $ERRORS -eq 0 ]]; then
+              echo "### ✅ Validation Passed"
+              echo "All parameters are valid."
+            else
+              echo "### ❌ Validation Failed"
+              echo "Please update your parameters file to match the template."
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+          # Also print to stdout for immediate feedback
           echo ""
           echo "📊 Parameter Validation Report:"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -304,16 +339,12 @@ jobs:
           fi
           echo ""
 
-          # Check for unknown parameters (passed but not declared)
-          unknown=$(comm -23 <(echo "$passed") <(echo "$declared") 2>/dev/null || echo "")
           if [[ -n "$unknown" ]]; then
             echo "❌ ERROR: Unknown parameters not declared in template:"
             echo "$unknown" | sed 's/^/   /'
             echo ""
-            ERRORS=$((ERRORS + 1))
           fi
 
-          # Summary
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           if [[ $ERRORS -eq 0 ]]; then
             echo "✅ All parameter validations passed"
@@ -321,7 +352,7 @@ jobs:
           else
             echo "❌ Validation failed with $ERRORS error(s)"
             echo ""
-            echo "::error::Parameter validation failed - see details above"
+            echo "::error::Parameter validation failed - see details in step summary"
             exit 1
           fi
 
