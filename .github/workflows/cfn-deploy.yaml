@@ -74,12 +74,16 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
-      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}
     outputs:
       ci-suffix: ${{ steps.ci-suffix.outputs.suffix }}
       stack-name: ${{ steps.prepare-stack-name.outputs.stack-name }}
       parameters-file-path: ${{ steps.params-path.outputs.path }}
     steps:
+      - name: Set S3 Bucket Environment Variable
+        run: |
+          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
+          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
+
       - name: Validate Environment
         id: validate-env
         shell: bash
@@ -256,10 +260,14 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
-      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}
     outputs:
       template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
     steps:
+      - name: Set S3 Bucket Environment Variable
+        run: |
+          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
+          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
+
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
@@ -310,8 +318,12 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
-      CFN_TEMPLATES_S3_BUCKET: ${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}
     steps:
+      - name: Set S3 Bucket Environment Variable
+        run: |
+          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
+          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
+
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
