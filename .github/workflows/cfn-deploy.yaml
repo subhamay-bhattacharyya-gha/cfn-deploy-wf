@@ -92,6 +92,8 @@ jobs:
 
       - name: Print Inputs and Configuration to Summary
         if: vars.PRINT_DEBUG_INFO == 'true'
+        env:
+          CFN_TEMPLATE_S3_BUCKET_NAME: ${{ vars.CFN_TEMPLATE_S3_BUCKET_NAME }}
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
           ## 🔍 CloudFormation Deploy - Debug Info (`cfn-deploy-wf`)
@@ -103,6 +105,7 @@ jobs:
           | AWS Region | `${{ env.AWS_REGION }}` |
           | AWS Account ID | `${{ env.AWS_ACCOUNT_ID }}` |
           | OIDC Role Name | `${{ env.AWS_OIDC_ROLE_NAME }}` |
+          | S3 Bucket | `${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}` |
           | Stack Name (Base) | `${{ inputs.stack-name }}` |
           | Template File | `${{ inputs.template-file }}` |
           | Parameters File | `${{ inputs.parameters-file }}` |
@@ -241,6 +244,86 @@ jobs:
         if: ${{ inputs.skip-template-validation }}
         run: |
           echo "⏭️  Skipping template validation"
+
+      - name: Validate Parameters Against Template
+        shell: bash
+        run: |
+          set -e
+          PARAMS_FILE="${{ inputs.parameters-file }}"
+          TEMPLATE_FILE="${{ inputs.template-file }}"
+          ERRORS=0
+
+          echo "🔍 Pre-flight check: Validating parameters against template..."
+          echo ""
+
+          # Check if parameters file exists
+          if [[ ! -f "$PARAMS_FILE" ]]; then
+            echo "⚠️  Parameters file not found: $PARAMS_FILE. Skipping parameter validation."
+            exit 0
+          fi
+
+          # Validate JSON is parseable
+          if ! cat "$PARAMS_FILE" | jq empty 2>/dev/null; then
+            echo "❌ Error: Invalid JSON in parameters file"
+            exit 1
+          fi
+
+          # Check if template file exists
+          if [[ ! -f "$TEMPLATE_FILE" ]]; then
+            echo "⚠️  Template file not found: $TEMPLATE_FILE. Skipping parameter validation."
+            exit 0
+          fi
+
+          # Get template parameters using CloudFormation validation
+          echo "📋 Extracting template parameters from template..."
+          template_info=$(aws cloudformation validate-template --template-body file://"$TEMPLATE_FILE" \
+            --region "${{ env.AWS_REGION }}" 2>/dev/null || echo "{}")
+
+          declared=$(echo "$template_info" | jq -r '.Parameters[].ParameterKey' 2>/dev/null | sort || echo "")
+
+          # Get passed parameters from parameters file
+          echo "📋 Extracting passed parameters from file..."
+          PARAMS=$(cat "$PARAMS_FILE")
+
+          # Handle both object and array formats
+          PARAMS_TYPE=$(echo "$PARAMS" | jq -r 'type')
+          if [[ "$PARAMS_TYPE" == "object" ]]; then
+            passed=$(echo "$PARAMS" | jq -r 'keys[]' 2>/dev/null | sort || echo "")
+          else
+            passed=$(echo "$PARAMS" | jq -r '.[].ParameterKey' 2>/dev/null | sort || echo "")
+          fi
+
+          echo ""
+          echo "📊 Parameter Validation Report:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Declared parameters in template:"
+          if [[ -n "$declared" ]]; then
+            echo "$declared" | sed 's/^/   /'
+          else
+            echo "   (none)"
+          fi
+          echo ""
+
+          # Check for unknown parameters (passed but not declared)
+          unknown=$(comm -23 <(echo "$passed") <(echo "$declared") 2>/dev/null || echo "")
+          if [[ -n "$unknown" ]]; then
+            echo "❌ ERROR: Unknown parameters not declared in template:"
+            echo "$unknown" | sed 's/^/   /'
+            echo ""
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Summary
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          if [[ $ERRORS -eq 0 ]]; then
+            echo "✅ All parameter validations passed"
+            exit 0
+          else
+            echo "❌ Validation failed with $ERRORS error(s)"
+            echo ""
+            echo "::error::Parameter validation failed - see details above"
+            exit 1
+          fi
 
   upload-to-s3:
     name: Upload Template to S3
