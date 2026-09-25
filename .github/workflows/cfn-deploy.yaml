@@ -796,84 +796,130 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy CloudFormation Stack
-        id: deploy
-        continue-on-error: true
-        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@feature/GHA-0017-upgrade-github-runner-to
-        with:
-          stack-name: ${{ needs.validate.outputs.stack-name }}
-          aws-region: ${{ env.AWS_REGION }}
-          template-url: ${{ needs.upload-to-s3.outputs.template_url }}
-          parameters-file: ${{ steps.prepare-params.outputs.parameters_file }}
-          aws-account-id: ${{ env.AWS_ACCOUNT_ID }}
-          oidc-role-name: ${{ env.AWS_OIDC_ROLE_NAME }}
-
-      - name: Handle Deployment Result
+      - name: Display ROLLBACK_COMPLETE Stacks Status
+        if: inputs.environment == 'ci'
         shell: bash
         run: |
-          DEPLOY_STATUS="${{ steps.deploy.outcome }}"
-          STACK_NAME="${{ needs.validate.outputs.stack-name }}"
           REGION="${{ env.AWS_REGION }}"
 
-          if [[ "$DEPLOY_STATUS" == "success" ]]; then
-            echo "✅ CloudFormation stack deployed successfully: $STACK_NAME"
-            exit 0
+          echo "🔍 Checking for any remaining ROLLBACK_COMPLETE stacks..."
+          echo ""
+
+          # Get all stacks in ROLLBACK_COMPLETE state
+          ROLLBACK_STACKS=$(aws cloudformation list-stacks \
+            --stack-status-filter ROLLBACK_COMPLETE \
+            --region "$REGION" \
+            --query "StackSummaries[].StackName" \
+            --output text 2>&1)
+
+          if [[ -n "$ROLLBACK_STACKS" ]]; then
+            echo "⚠️  Found ROLLBACK_COMPLETE stacks:"
+            echo "$ROLLBACK_STACKS" | tr '\t' '\n' | nl
+            echo ""
           else
-            # Deployment failed - check if it's due to "No updates are to be performed"
-            echo "⏳ Checking stack status after deployment attempt..."
+            echo "✅ No ROLLBACK_COMPLETE stacks found"
+            echo ""
+          fi
 
-            STACK_STATUS=$(aws cloudformation describe-stacks \
-              --stack-name "$STACK_NAME" \
-              --region "$REGION" \
-              --query 'Stacks[0].StackStatus' \
-              --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          # Print to step summary
+          {
+            echo "## ⚠️ ROLLBACK_COMPLETE Stacks Status Check"
+            echo ""
+            echo "**Region:** \`$REGION\`"
+            echo ""
 
-            if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
+            if [[ -n "$ROLLBACK_STACKS" ]]; then
+              echo "### Remaining ROLLBACK_COMPLETE Stacks:"
               echo ""
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "✅ Stack is already up-to-date (no updates needed)"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "Stack Name: $STACK_NAME"
-              echo "Stack Status: $STACK_STATUS"
+              echo "\`\`\`"
+              echo "$ROLLBACK_STACKS" | tr '\t' '\n'
+              echo "\`\`\`"
               echo ""
-              echo "ℹ️  This is expected when template and parameters haven't changed."
-              echo "ℹ️  The stack is in the desired state."
-              echo ""
-              exit 0
+              echo "⚠️ **Warning:** These stacks should have been deleted in previous steps."
             else
-              echo "❌ Deployment failed"
-              echo "Stack Status: $STACK_STATUS"
-              exit 1
+              echo "### Status:"
+              echo "✅ **No ROLLBACK_COMPLETE stacks found** - Ready for deployment"
             fi
-          fi
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
+          } >> $GITHUB_STEP_SUMMARY
 
-      - name: Delete Artifact on Successful Deployment
-        if: success()
-        shell: bash
-        run: |
-          ARTIFACT_NAME="cfn-deploy-params"
+      # - name: Deploy CloudFormation Stack
+      #   id: deploy
+      #   continue-on-error: true
+      #   uses: subhamay-bhattacharyya-gha/cfn-deploy-action@feature/GHA-0017-upgrade-github-runner-to
+      #   with:
+      #     stack-name: ${{ needs.validate.outputs.stack-name }}
+      #     aws-region: ${{ env.AWS_REGION }}
+      #     template-url: ${{ needs.upload-to-s3.outputs.template_url }}
+      #     parameters-file: ${{ steps.prepare-params.outputs.parameters_file }}
+      #     aws-account-id: ${{ env.AWS_ACCOUNT_ID }}
+      #     oidc-role-name: ${{ env.AWS_OIDC_ROLE_NAME }}
 
-          echo "🗑️  Attempting to delete artifact: $ARTIFACT_NAME"
+      # - name: Handle Deployment Result
+      #   shell: bash
+      #   run: |
+      #     DEPLOY_STATUS="${{ steps.deploy.outcome }}"
+      #     STACK_NAME="${{ needs.validate.outputs.stack-name }}"
+      #     REGION="${{ env.AWS_REGION }}"
 
-          # Get artifact ID
-          ARTIFACT_ID=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
-            --jq ".artifacts[] | select(.name == \"$ARTIFACT_NAME\") | .id" 2>/dev/null)
+      #     if [[ "$DEPLOY_STATUS" == "success" ]]; then
+      #       echo "✅ CloudFormation stack deployed successfully: $STACK_NAME"
+      #       exit 0
+      #     else
+      #       # Deployment failed - check if it's due to "No updates are to be performed"
+      #       echo "⏳ Checking stack status after deployment attempt..."
 
-          if [[ -z "$ARTIFACT_ID" ]]; then
-            echo "ℹ️  Artifact does not exist or already deleted: $ARTIFACT_NAME"
-            exit 0
-          fi
+      #       STACK_STATUS=$(aws cloudformation describe-stacks \
+      #         --stack-name "$STACK_NAME" \
+      #         --region "$REGION" \
+      #         --query 'Stacks[0].StackStatus' \
+      #         --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
-          # Try to delete with better error handling
-          if gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID 2>/dev/null; then
-            echo "✅ Successfully deleted artifact: $ARTIFACT_NAME (ID: $ARTIFACT_ID)"
-          else
-            # If 403 error, log it but don't fail
-            echo "⚠️  Could not delete artifact (may lack permissions): $ARTIFACT_NAME"
-            echo "ℹ️  This is expected if the workflow doesn't have 'actions: write' permission"
-            exit 0
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
+      #       if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
+      #         echo ""
+      #         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      #         echo "✅ Stack is already up-to-date (no updates needed)"
+      #         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      #         echo "Stack Name: $STACK_NAME"
+      #         echo "Stack Status: $STACK_STATUS"
+      #         echo ""
+      #         echo "ℹ️  This is expected when template and parameters haven't changed."
+      #         echo "ℹ️  The stack is in the desired state."
+      #         echo ""
+      #         exit 0
+      #       else
+      #         echo "❌ Deployment failed"
+      #         echo "Stack Status: $STACK_STATUS"
+      #         exit 1
+      #       fi
+      #     fi
+      #   env:
+      #     AWS_REGION: ${{ env.AWS_REGION }}
+
+      # - name: Delete Artifact on Successful Deployment
+      #   if: success()
+      #   shell: bash
+      #   run: |
+      #     ARTIFACT_NAME="cfn-deploy-params"
+
+      #     echo "🗑️  Attempting to delete artifact: $ARTIFACT_NAME"
+
+      #     # Get artifact ID
+      #     ARTIFACT_ID=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts \
+      #       --jq ".artifacts[] | select(.name == \"$ARTIFACT_NAME\") | .id" 2>/dev/null)
+
+      #     if [[ -z "$ARTIFACT_ID" ]]; then
+      #       echo "ℹ️  Artifact does not exist or already deleted: $ARTIFACT_NAME"
+      #       exit 0
+      #     fi
+
+      #     # Try to delete with better error handling
+      #     if gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID 2>/dev/null; then
+      #       echo "✅ Successfully deleted artifact: $ARTIFACT_NAME (ID: $ARTIFACT_ID)"
+      #     else
+      #       # If 403 error, log it but don't fail
+      #       echo "⚠️  Could not delete artifact (may lack permissions): $ARTIFACT_NAME"
+      #       echo "ℹ️  This is expected if the workflow doesn't have 'actions: write' permission"
+      #       exit 0
+      #     fi
+      #   env:
+      #     GH_TOKEN: ${{ github.token }}
