@@ -202,7 +202,7 @@ jobs:
           echo "✅ Final stack name: ${STACK_NAME}"
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
@@ -373,7 +373,7 @@ jobs:
       template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure AWS credentials via OIDC
         if: ${{ !inputs.skip-s3-upload }}
