@@ -137,7 +137,7 @@ jobs:
       - name: Download Previous Artifacts
         id: download-artifact
         if: steps.check-artifact.outputs.artifact-exists == 'true'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: cfn-deploy-params
           path: .artifacts
@@ -202,7 +202,7 @@ jobs:
           echo "✅ Final stack name: ${STACK_NAME}"
 
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
@@ -373,7 +373,7 @@ jobs:
       template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials via OIDC
         if: ${{ !inputs.skip-s3-upload }}
@@ -516,7 +516,7 @@ jobs:
 
       - name: Upload Parameters as Artifact (for failure recovery)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: cfn-deploy-params
           path: ${{ steps.prepare-params.outputs.parameters_file }}
