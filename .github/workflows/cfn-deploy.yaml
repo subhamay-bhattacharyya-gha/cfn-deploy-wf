@@ -79,11 +79,6 @@ jobs:
       stack-name: ${{ steps.prepare-stack-name.outputs.stack-name }}
       parameters-file-path: ${{ steps.params-path.outputs.path }}
     steps:
-      - name: Set S3 Bucket Environment Variable
-        run: |
-          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
-          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
-
       - name: Validate Environment
         id: validate-env
         shell: bash
@@ -97,6 +92,8 @@ jobs:
 
       - name: Print Inputs and Configuration to Summary
         if: vars.PRINT_DEBUG_INFO == 'true'
+        env:
+          CFN_TEMPLATE_S3_BUCKET_NAME: ${{ vars.CFN_TEMPLATE_S3_BUCKET_NAME }}
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
           ## 🔍 CloudFormation Deploy - Debug Info (`cfn-deploy-wf`)
@@ -108,7 +105,7 @@ jobs:
           | AWS Region | `${{ env.AWS_REGION }}` |
           | AWS Account ID | `${{ env.AWS_ACCOUNT_ID }}` |
           | OIDC Role Name | `${{ env.AWS_OIDC_ROLE_NAME }}` |
-          | S3 Bucket | `${{ env.CFN_TEMPLATES_S3_BUCKET }}` |
+          | S3 Bucket | `${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}` |
           | Stack Name (Base) | `${{ inputs.stack-name }}` |
           | Template File | `${{ inputs.template-file }}` |
           | Parameters File | `${{ inputs.parameters-file }}` |
@@ -230,7 +227,7 @@ jobs:
 
       - name: Validate CloudFormation Templates
         if: ${{ !inputs.skip-template-validation }}
-        uses: subhamay-bhattacharyya-gha/cfn-validate-action@main
+        uses: subhamay-bhattacharyya-gha/cfn-validate-action@v1.0.0
         with:
           aws-role-arn: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
           cloudformation-dir: ${{ steps.template-paths.outputs.directory }}
@@ -239,7 +236,7 @@ jobs:
 
       - name: Run CloudFormation Lint
         if: ${{ !inputs.skip-template-validation }}
-        uses: subhamay-bhattacharyya-gha/cfn-lint-action@v1.0.0
+        uses: subhamay-bhattacharyya-gha/cfn-lint-action@v1.1.0
         with:
           template-path: ${{ inputs.template-file }}
 
@@ -247,6 +244,117 @@ jobs:
         if: ${{ inputs.skip-template-validation }}
         run: |
           echo "⏭️  Skipping template validation"
+
+      - name: Validate Parameters Against Template
+        shell: bash
+        run: |
+          set -e
+          PARAMS_FILE="${{ inputs.parameters-file }}"
+          TEMPLATE_FILE="${{ inputs.template-file }}"
+          ERRORS=0
+
+          echo "🔍 Pre-flight check: Validating parameters against template..."
+          echo ""
+
+          # Check if parameters file exists
+          if [[ ! -f "$PARAMS_FILE" ]]; then
+            echo "⚠️  Parameters file not found: $PARAMS_FILE. Skipping parameter validation."
+            exit 0
+          fi
+
+          # Validate JSON is parseable
+          if ! cat "$PARAMS_FILE" | jq empty 2>/dev/null; then
+            echo "❌ Error: Invalid JSON in parameters file"
+            exit 1
+          fi
+
+          # Check if template file exists
+          if [[ ! -f "$TEMPLATE_FILE" ]]; then
+            echo "⚠️  Template file not found: $TEMPLATE_FILE. Skipping parameter validation."
+            exit 0
+          fi
+
+          # Get template parameters using CloudFormation validation
+          echo "📋 Extracting template parameters from template..."
+          template_info=$(aws cloudformation validate-template --template-body file://"$TEMPLATE_FILE" \
+            --region "${{ env.AWS_REGION }}" 2>/dev/null || echo "{}")
+
+          declared=$(echo "$template_info" | jq -r '.Parameters[].ParameterKey' 2>/dev/null | sort || echo "")
+
+          # Get passed parameters from parameters file
+          echo "📋 Extracting passed parameters from file..."
+          PARAMS=$(cat "$PARAMS_FILE")
+
+          # Handle both object and array formats
+          PARAMS_TYPE=$(echo "$PARAMS" | jq -r 'type')
+          if [[ "$PARAMS_TYPE" == "object" ]]; then
+            passed=$(echo "$PARAMS" | jq -r 'keys[]' 2>/dev/null | sort || echo "")
+          else
+            passed=$(echo "$PARAMS" | jq -r '.[].ParameterKey' 2>/dev/null | sort || echo "")
+          fi
+
+          {
+            echo "## 🔍 CloudFormation Parameter Validation"
+            echo ""
+            echo "### Declared Parameters in Template"
+            echo "\`\`\`"
+            if [[ -n "$declared" ]]; then
+              echo "$declared"
+            else
+              echo "(none)"
+            fi
+            echo "\`\`\`"
+            echo ""
+
+            # Check for unknown parameters (passed but not declared)
+            unknown=$(comm -23 <(echo "$passed") <(echo "$declared") 2>/dev/null || echo "")
+            if [[ -n "$unknown" ]]; then
+              echo "### ❌ Unknown Parameters"
+              echo "The following parameters are not declared in the template:"
+              echo "\`\`\`"
+              echo "$unknown"
+              echo "\`\`\`"
+              echo ""
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            if [[ $ERRORS -eq 0 ]]; then
+              echo "### ✅ Validation Passed"
+              echo "All parameters are valid."
+            else
+              echo "### ❌ Validation Failed"
+              echo "Please update your parameters file to match the template."
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+          # Also print to stdout for immediate feedback
+          echo ""
+          echo "📊 Parameter Validation Report:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Declared parameters in template:"
+          if [[ -n "$declared" ]]; then
+            echo "$declared" | sed 's/^/   /'
+          else
+            echo "   (none)"
+          fi
+          echo ""
+
+          if [[ -n "$unknown" ]]; then
+            echo "❌ ERROR: Unknown parameters not declared in template:"
+            echo "$unknown" | sed 's/^/   /'
+            echo ""
+          fi
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          if [[ $ERRORS -eq 0 ]]; then
+            echo "✅ All parameter validations passed"
+            exit 0
+          else
+            echo "❌ Validation failed with $ERRORS error(s)"
+            echo ""
+            echo "::error::Parameter validation failed - see details in step summary"
+            exit 1
+          fi
 
   upload-to-s3:
     name: Upload Template to S3
@@ -260,14 +368,10 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
+      CFN_TEMPLATE_S3_BUCKET_NAME: ${{ vars.CFN_TEMPLATE_S3_BUCKET_NAME }}
     outputs:
       template_url: ${{ steps.upload.outputs.template_url || steps.skip-upload.outputs.template_url }}
     steps:
-      - name: Set S3 Bucket Environment Variable
-        run: |
-          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
-          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
-
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
@@ -285,9 +389,9 @@ jobs:
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
           echo "Uploading template to S3..."
-          aws s3 cp ${{ inputs.template-file }} "s3://${{ env.CFN_TEMPLATES_S3_BUCKET }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
+          aws s3 cp ${{ inputs.template-file }} "s3://${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}/${TEMPLATE_KEY}" --region ${{ env.AWS_REGION }}
 
-          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "Template URL: ${TEMPLATE_URL}"
           echo "✅ Template uploaded to S3"
@@ -298,7 +402,7 @@ jobs:
         run: |
           TEMPLATE_FILENAME=$(basename "${{ inputs.template-file }}")
           TEMPLATE_KEY="${{ github.event.repository.name }}/${TEMPLATE_FILENAME}"
-          TEMPLATE_URL="https://${{ env.CFN_TEMPLATES_S3_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
+          TEMPLATE_URL="https://${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }}.s3.${{ env.AWS_REGION }}.amazonaws.com/${TEMPLATE_KEY}"
           echo "template_url=${TEMPLATE_URL}" >> $GITHUB_OUTPUT
           echo "⏭️  Skipping S3 upload - using existing template from S3"
           echo "Template URL: ${TEMPLATE_URL}"
@@ -318,12 +422,8 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_OIDC_ROLE_NAME: ${{ vars.AWS_OIDC_ROLE_NAME }}
+      CFN_TEMPLATE_S3_BUCKET_NAME: ${{ vars.CFN_TEMPLATE_S3_BUCKET_NAME }}
     steps:
-      - name: Set S3 Bucket Environment Variable
-        run: |
-          CFN_TEMPLATES_S3_BUCKET="${{ vars.CFN_TEMPLATES_S3_BUCKET }}-${{ vars.AWS_ACCOUNT_ID }}-${{ vars.AWS_REGION }}"
-          echo "CFN_TEMPLATES_S3_BUCKET=${CFN_TEMPLATES_S3_BUCKET}" >> $GITHUB_ENV
-
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
@@ -396,7 +496,7 @@ jobs:
             echo "| AWS Region | ${{ env.AWS_REGION }} |"
             echo "| AWS Account ID | ${{ env.AWS_ACCOUNT_ID }} |"
             echo "| OIDC Role Name | ${{ env.AWS_OIDC_ROLE_NAME }} |"
-            echo "| CFN Templates S3 Bucket | ${{ env.CFN_TEMPLATES_S3_BUCKET }} |"
+            echo "| CFN Templates S3 Bucket | ${{ env.CFN_TEMPLATE_S3_BUCKET_NAME }} |"
             echo "| Stack Name | ${{ inputs.stack-name != '' && inputs.stack-name || 'default (repository name)' }} |"
             echo "| Template File | ${{ inputs.template-file }} |"
             echo "| Parameters File | ${{ inputs.parameters-file }} |"
@@ -422,24 +522,24 @@ jobs:
           path: ${{ steps.prepare-params.outputs.parameters_file }}
           retention-days: 30
 
-      - name: Delete Existing Stack in CI Environment
+      - name: Delete Current Stack if Exists
         if: inputs.environment == 'ci'
         shell: bash
         run: |
           STACK_NAME="${{ needs.validate.outputs.stack-name }}"
           REGION="${{ env.AWS_REGION }}"
 
-          echo "🗑️  Checking if stack exists: $STACK_NAME"
+          echo "🔍 Checking if current stack exists: $STACK_NAME"
 
           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null; then
-            echo "🗑️  Stack exists. Deleting stack: $STACK_NAME"
+            echo "   ℹ️  Stack exists. Deleting: $STACK_NAME"
             aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION"
 
             echo "⏳ Waiting for stack deletion to complete..."
-            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "$REGION" || true
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "$REGION" 2>&1 || true
             echo "✅ Stack deletion complete"
           else
-            echo "ℹ️  Stack does not exist: $STACK_NAME. Proceeding with creation..."
+            echo "   ✅ Stack does not exist. Ready for creation."
           fi
 
       - name: Check if Stack Updates are Needed
@@ -502,47 +602,190 @@ jobs:
       - name: Validate Parameters Against Template
         shell: bash
         run: |
+          set -e
           PARAMS_FILE="${{ steps.prepare-params.outputs.parameters_file }}"
           TEMPLATE_URL="${{ needs.upload-to-s3.outputs.template_url }}"
+          ERRORS=0
 
           echo "🔍 Pre-flight check: Validating parameters against template..."
           echo ""
 
-          # Get declared parameters from template
-          echo "📋 Fetching declared parameters from template..."
-          declared=$(aws cloudformation validate-template --template-url "$TEMPLATE_URL" \
-            --region "${{ env.AWS_REGION }}" \
-            --query 'Parameters[].ParameterKey' --output text | tr '\t' '\n' | sort)
+          # Fetch template info
+          echo "📋 Fetching template parameters..."
+          template_info=$(aws cloudformation validate-template --template-url "$TEMPLATE_URL" \
+            --region "${{ env.AWS_REGION }}")
+
+          declared=$(echo "$template_info" | jq -r '.Parameters[].ParameterKey' | sort)
+          required=$(echo "$template_info" | jq -r '.Parameters[] | select(.DefaultValue == null) | .ParameterKey' | sort)
 
           # Get passed parameters from parameters file
           echo "📋 Extracting passed parameters from file..."
           passed=$(jq -r '.[].ParameterKey' "$PARAMS_FILE" 2>/dev/null | sort)
-
-          # Find unknown parameters
-          unknown=$(comm -13 <(echo "$declared") <(echo "$passed"))
+          passed_values=$(jq -r '.[] | "\(.ParameterKey)=\(.ParameterValue)"' "$PARAMS_FILE" 2>/dev/null)
 
           echo ""
-          echo "✅ Declared parameters in template:"
-          echo "$declared" | sed 's/^/   - /'
-          echo ""
-          echo "📝 Passed parameters:"
-          echo "$passed" | sed 's/^/   - /'
+          echo "📊 Parameter Validation Report:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Declared parameters in template (Required marked with *):"
+          echo "$template_info" | jq -r '.Parameters[] | (if .DefaultValue == null then "* " else "  " end) + .ParameterKey' | sed 's/^/   /'
           echo ""
 
+          # Check for unknown parameters (passed but not declared)
+          unknown=$(comm -23 <(echo "$passed") <(echo "$declared"))
           if [[ -n "$unknown" ]]; then
-            echo "❌ ERROR: Parameters not declared in template:"
-            echo "$unknown" | sed 's/^/   - /'
+            echo "❌ ERROR: Unknown parameters not declared in template:"
+            echo "$unknown" | sed 's/^/   /'
             echo ""
-            echo "::error::Parameters not declared in template: $(echo "$unknown" | tr '\n' ' ')"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for missing required parameters
+          missing_required=$(comm -23 <(echo "$required") <(echo "$passed"))
+          if [[ -n "$missing_required" ]]; then
+            echo "❌ ERROR: Missing required parameters:"
+            echo "$missing_required" | sed 's/^/   /'
+            echo ""
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check for empty parameter values
+          empty_params=$(echo "$passed_values" | grep '=$' || true)
+          if [[ -n "$empty_params" ]]; then
+            echo "⚠️  WARNING: Parameters with empty values:"
+            echo "$empty_params" | sed 's/^/   /'
+            echo ""
+          fi
+
+          # Summary
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          if [[ $ERRORS -eq 0 ]]; then
+            echo "✅ All validations passed"
+            exit 0
+          else
+            echo "❌ Validation failed with $ERRORS error(s)"
+            echo ""
+            echo "::error::Parameter validation failed - see details above"
             exit 1
           fi
 
-          echo "✅ All parameters are declared in the template"
+      - name: Display ROLLBACK_COMPLETE Stacks Status
+        if: inputs.environment == 'ci'
+        shell: bash
+        run: |
+          REGION="${{ env.AWS_REGION }}"
+
+          echo "🔍 Checking for any remaining ROLLBACK_COMPLETE stacks..."
+          echo ""
+
+          # Get all stacks in ROLLBACK_COMPLETE state
+          ROLLBACK_STACKS=$(aws cloudformation list-stacks \
+            --stack-status-filter ROLLBACK_COMPLETE \
+            --region "$REGION" \
+            --query "StackSummaries[].StackName" \
+            --output text 2>&1)
+
+          if [[ -n "$ROLLBACK_STACKS" ]]; then
+            echo "⚠️  Found ROLLBACK_COMPLETE stacks:"
+            echo "$ROLLBACK_STACKS" | tr '\t' '\n' | nl
+            echo ""
+          else
+            echo "✅ No ROLLBACK_COMPLETE stacks found"
+            echo ""
+          fi
+
+          # Print to step summary
+          {
+            echo "## ⚠️ ROLLBACK_COMPLETE Stacks Status Check"
+            echo ""
+            echo "**Region:** \`$REGION\`"
+            echo ""
+
+            if [[ -n "$ROLLBACK_STACKS" ]]; then
+              echo "### Remaining ROLLBACK_COMPLETE Stacks:"
+              echo ""
+              echo "\`\`\`"
+              echo "$ROLLBACK_STACKS" | tr '\t' '\n'
+              echo "\`\`\`"
+              echo ""
+              echo "⚠️ **Warning:** These stacks should have been deleted in previous steps."
+            else
+              echo "### Status:"
+              echo "✅ **No ROLLBACK_COMPLETE stacks found** - Ready for deployment"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Delete ROLLBACK_COMPLETE Stacks (Final Cleanup Before Deployment)
+        if: inputs.environment == 'ci'
+        shell: bash
+        run: |
+          REGION="${{ env.AWS_REGION }}"
+
+          echo "🔍 Fetching ROLLBACK_COMPLETE stacks for deletion..."
+          echo ""
+
+          # Get all stacks in ROLLBACK_COMPLETE state
+          ROLLBACK_STACKS=$(aws cloudformation list-stacks \
+            --stack-status-filter ROLLBACK_COMPLETE \
+            --region "$REGION" \
+            --query "StackSummaries[].StackName" \
+            --output text 2>&1)
+
+          if [[ -z "$ROLLBACK_STACKS" ]]; then
+            echo "✅ No ROLLBACK_COMPLETE stacks to delete. Proceeding with deployment."
+            exit 0
+          fi
+
+          echo "Found ROLLBACK_COMPLETE stacks to delete:"
+          echo "$ROLLBACK_STACKS" | tr '\t' '\n' | nl
+          echo ""
+
+          # Convert space/tab separated values to array
+          STACKS_ARRAY=($ROLLBACK_STACKS)
+          TOTAL_STACKS=${#STACKS_ARRAY[@]}
+
+          echo "🗑️  Starting deletion of $TOTAL_STACKS ROLLBACK_COMPLETE stack(s)..."
+          echo ""
+
+          # Delete stacks one by one with wait condition
+          DELETION_COUNT=0
+          for stack in "${STACKS_ARRAY[@]}"; do
+            if [[ -n "$stack" ]]; then
+              DELETION_COUNT=$((DELETION_COUNT + 1))
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "[$DELETION_COUNT/$TOTAL_STACKS] Deleting stack: $stack"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+              # Initiate deletion
+              echo "   → Initiating deletion..."
+              if ! aws cloudformation delete-stack --stack-name "$stack" --region "$REGION" 2>&1; then
+                echo "   ⚠️  Failed to initiate deletion for: $stack"
+                echo ""
+                continue
+              fi
+              echo "   ✅ Deletion initiated"
+
+              # Wait for stack deletion to complete
+              echo "   ⏳ Waiting for stack deletion to complete (this may take a few minutes)..."
+              if aws cloudformation wait stack-delete-complete --stack-name "$stack" --region "$REGION" 2>&1; then
+                echo "   ✅ Stack fully deleted: $stack"
+              else
+                echo "   ⚠️  Stack deletion wait timed out or failed: $stack"
+                echo "      The stack may still be deleting in the background."
+              fi
+              echo ""
+            fi
+          done
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Deletion of $DELETION_COUNT ROLLBACK_COMPLETE stack(s) complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Proceeding with CloudFormation deployment..."
 
       - name: Deploy CloudFormation Stack
         id: deploy
         continue-on-error: true
-        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@v1.0.1 
+        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@v1.1.0
         with:
           stack-name: ${{ needs.validate.outputs.stack-name }}
           aws-region: ${{ env.AWS_REGION }}
