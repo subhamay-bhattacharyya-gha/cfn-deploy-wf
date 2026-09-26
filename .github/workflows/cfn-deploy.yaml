@@ -227,7 +227,7 @@ jobs:
 
       - name: Validate CloudFormation Templates
         if: ${{ !inputs.skip-template-validation }}
-        uses: subhamay-bhattacharyya-gha/cfn-validate-action@main
+        uses: subhamay-bhattacharyya-gha/cfn-validate-action@v1.0.0
         with:
           aws-role-arn: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_OIDC_ROLE_NAME }}
           cloudformation-dir: ${{ steps.template-paths.outputs.directory }}
