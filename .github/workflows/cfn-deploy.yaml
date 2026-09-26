@@ -236,7 +236,7 @@ jobs:
 
       - name: Run CloudFormation Lint
         if: ${{ !inputs.skip-template-validation }}
-        uses: subhamay-bhattacharyya-gha/cfn-lint-action@v1.0.0
+        uses: subhamay-bhattacharyya-gha/cfn-lint-action@v1.1.0
         with:
           template-path: ${{ inputs.template-file }}
 
