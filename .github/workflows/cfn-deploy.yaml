@@ -785,7 +785,7 @@ jobs:
       - name: Deploy CloudFormation Stack
         id: deploy
         continue-on-error: true
-        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@feature/GHA-0017-upgrade-github-runner-to
+        uses: subhamay-bhattacharyya-gha/cfn-deploy-action@v1.1.0
         with:
           stack-name: ${{ needs.validate.outputs.stack-name }}
           aws-region: ${{ env.AWS_REGION }}
