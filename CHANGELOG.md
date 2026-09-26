@@ -1,3 +1,25 @@
+# [1.4.0](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/compare/v1.3.2...v1.4.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* improve ROLLBACK_COMPLETE stack detection and deletion ([fca3f80](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/fca3f809dcb8d89c347720138ece805120c06f6b))
+* improve ROLLBACK_COMPLETE stack listing and deletion with proper JSON handling ([fbfdb0a](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/fbfdb0afb91a27ed33c8cc2ce8afc069f945c9f2))
+* remove duplicate early ROLLBACK_COMPLETE deletion steps ([e689602](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/e689602fafcfff23b50a5b4a1a5082b41e2afc72))
+* update all GitHub Actions to Node.js 24 compatible versions ([8d19edf](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/8d19edfe6766cbb003d9aa009e3ecc47924bf3c0))
+* update cfn-validate-action to v1.0.0 for version consistency ([63f28f4](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/63f28f43d587ee696ea6680b078409581f84ec3b))
+
+
+### Features
+
+* add early parameter validation in validate job and S3 bucket debug output ([8b9f96d](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/8b9f96d611daa947a2458ef0058a89aa75bb0eee))
+* add final cleanup step to delete ROLLBACK_COMPLETE stacks before deployment ([da0f305](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/da0f305312bb21505683c389d7e2a81f272f6f50))
+* add parameter validation output to step summary for better visibility ([f5ad70c](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/f5ad70c571a37eccb9ff50f21c3b104f334c3926))
+* add pre-deployment ROLLBACK_COMPLETE status check and fix commented steps ([a505cd7](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/a505cd7d1121298c068c88a9ed79abf60cf3d8f4))
+* add ROLLBACK_COMPLETE stacks status check and remove redundant deployment steps ([ca6fe62](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/ca6fe625678a09004ad9a7e94a6a3ad6526d7665))
+* delete ROLLBACK_COMPLETE stacks before CI deployment ([bd46570](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/bd465704410bc3d9ab6286547c58fcb7ca919f00))
+* print ROLLBACK_COMPLETE stacks to summary and improve deletion handling ([a30d879](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/commit/a30d879ed32a8e356884afa480a1a65e4b493536))
+
 ## [1.3.2](https://github.com/subhamay-bhattacharyya-gha/cfn-deploy-wf/compare/v1.3.1...v1.3.2) (2026-09-25)
 
 
